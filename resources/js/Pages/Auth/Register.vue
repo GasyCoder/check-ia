@@ -10,6 +10,8 @@ const form = ref({
     password_confirmation: '',
 });
 const loading = ref(false);
+const showPassword = ref(false);
+const showPasswordConfirmation = ref(false);
 
 function submit() {
     loading.value = true;
@@ -69,28 +71,64 @@ function submit() {
                     <!-- Password -->
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1.5">Mot de passe</label>
-                        <input
-                            v-model="form.password"
-                            type="password"
-                            required
-                            autocomplete="new-password"
-                            class="w-full bg-slate-900/60 text-white border border-slate-600/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition placeholder-slate-500"
-                            placeholder="Minimum 8 caractères"
-                        />
+                        <div class="relative">
+                            <input
+                                v-model="form.password"
+                                :type="showPassword ? 'text' : 'password'"
+                                required
+                                autocomplete="new-password"
+                                class="w-full bg-slate-900/60 text-white border border-slate-600/50 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition placeholder-slate-500"
+                                placeholder="Minimum 8 caractères"
+                            />
+                            <button
+                                type="button"
+                                class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-slate-200 cursor-pointer"
+                                :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+                                @click="showPassword = !showPassword"
+                            >
+                                <svg v-if="showPassword" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.584 10.587a2.25 2.25 0 103.183 3.182" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.88 5.09A9.953 9.953 0 0112 4.875c4.478 0 8.268 2.943 9.542 7.004a9.966 9.966 0 01-4.185 5.263M6.228 6.228A9.956 9.956 0 002.458 11.88a9.965 9.965 0 005.042 5.774" />
+                                </svg>
+                                <svg v-else class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75A3.75 3.75 0 1012 8.25a3.75 3.75 0 000 7.5z" />
+                                </svg>
+                            </button>
+                        </div>
                         <p v-if="page.props.errors?.password" class="text-red-400 text-xs mt-1.5">{{ page.props.errors.password }}</p>
                     </div>
 
                     <!-- Confirm Password -->
                     <div>
                         <label class="block text-sm font-medium text-slate-300 mb-1.5">Confirmer le mot de passe</label>
-                        <input
-                            v-model="form.password_confirmation"
-                            type="password"
-                            required
-                            autocomplete="new-password"
-                            class="w-full bg-slate-900/60 text-white border border-slate-600/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition placeholder-slate-500"
-                            placeholder="Retapez votre mot de passe"
-                        />
+                        <div class="relative">
+                            <input
+                                v-model="form.password_confirmation"
+                                :type="showPasswordConfirmation ? 'text' : 'password'"
+                                required
+                                autocomplete="new-password"
+                                class="w-full bg-slate-900/60 text-white border border-slate-600/50 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition placeholder-slate-500"
+                                placeholder="Retapez votre mot de passe"
+                            />
+                            <button
+                                type="button"
+                                class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-slate-200 cursor-pointer"
+                                :aria-label="showPasswordConfirmation ? 'Masquer la confirmation du mot de passe' : 'Afficher la confirmation du mot de passe'"
+                                @click="showPasswordConfirmation = !showPasswordConfirmation"
+                            >
+                                <svg v-if="showPasswordConfirmation" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.584 10.587a2.25 2.25 0 103.183 3.182" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.88 5.09A9.953 9.953 0 0112 4.875c4.478 0 8.268 2.943 9.542 7.004a9.966 9.966 0 01-4.185 5.263M6.228 6.228A9.956 9.956 0 002.458 11.88a9.965 9.965 0 005.042 5.774" />
+                                </svg>
+                                <svg v-else class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75A3.75 3.75 0 1012 8.25a3.75 3.75 0 000 7.5z" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Submit -->

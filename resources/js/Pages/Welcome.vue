@@ -49,9 +49,9 @@ onMounted(() => {
 const charCount = computed(() => text.value.length);
 const charPercent = computed(() => Math.min((charCount.value / maxChars) * 100, 100));
 const charColor = computed(() => {
-    if (charPercent.value > 90) return 'text-red-500 dark:text-red-400';
-    if (charPercent.value > 70) return 'text-amber-500 dark:text-amber-400';
-    return 'text-slate-400 dark:text-slate-500';
+    if (charPercent.value > 90) return 'text-rose-500';
+    if (charPercent.value > 70) return 'text-amber-500';
+    return 'text-zinc-500';
 });
 
 const canAnalyze = computed(() => {
@@ -158,71 +158,68 @@ function clearAll() { text.value = ''; result.value = null; chunkResults.value =
 
 <template>
     <AppLayout>
-        <div class="flex items-start justify-center px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
-            <div class="w-full max-w-6xl space-y-6">
+        <div class="flex items-start justify-center bg-white px-4 py-8 dark:bg-[#18181b] sm:px-6 sm:py-10 lg:px-8">
+            <div class="w-full max-w-6xl space-y-8">
 
                 <!-- Header -->
-                <div>
-                    <div class="flex items-center gap-3 mb-1">
-                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <svg class="w-[18px] h-[18px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" /></svg>
-                        </div>
-                        <div>
-                            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Analyseur de texte IA</h1>
-                            <p class="text-sm text-slate-500 dark:text-slate-400">Détectez le contenu généré par intelligence artificielle</p>
-                        </div>
+                <div class="space-y-3">
+                    <div class="space-y-2">
+                        <h1 class="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">Detection Workspace</h1>
+                        <p class="max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
+                            Détectez le contenu généré par intelligence artificielle dans une interface plus claire, plus lisible et pensée comme un produit SaaS professionnel.
+                        </p>
                     </div>
                 </div>
 
                 <!-- Tabs -->
-                <div class="flex items-center gap-1 p-1 rounded-xl w-fit bg-slate-100 dark:bg-slate-800/80">
-                    <button @click="switchMode('text')" class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200" :class="mode === 'text' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
+                <div class="border-b border-zinc-200 dark:border-zinc-800">
+                    <div class="-mb-px flex items-center gap-8">
+                    <button @click="switchMode('text')" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium transition-colors cursor-pointer" :class="mode === 'text' ? 'border-blue-600 text-zinc-950 dark:text-zinc-50' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'">
                         Coller un texte
                     </button>
-                    <button @click="switchMode('file')" class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200" :class="mode === 'file' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                    <button @click="switchMode('file')" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium transition-colors cursor-pointer" :class="mode === 'file' ? 'border-blue-600 text-zinc-950 dark:text-zinc-50' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'">
                         Importer un fichier
                     </button>
+                    </div>
                 </div>
 
                 <!-- TEXT MODE -->
-                <div v-if="mode === 'text'" class="rounded-2xl border transition-all duration-500 bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 shadow-sm overflow-hidden">
+                <div v-if="mode === 'text'" class="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition-all duration-500 dark:border-zinc-800 dark:bg-zinc-900/90">
                     <!-- Collapsed -->
                     <div v-if="textCollapsed && text" class="cursor-pointer group" @click="textCollapsed = false">
-                        <div class="px-4 sm:px-6 py-3 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800/60">
+                        <div class="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
                             <div class="flex items-center gap-2">
-                                <svg class="w-4 h-4 text-slate-400 transition-transform duration-300 -rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                                <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Texte analysé</span>
-                                <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 tabular-nums">{{ charCount.toLocaleString() }} car.</span>
+                                <svg class="h-4 w-4 -rotate-90 text-zinc-400 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                <span class="text-sm font-medium text-zinc-950 dark:text-zinc-100">Texte analysé</span>
+                                <span class="rounded-full border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-500 tabular-nums dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">{{ charCount.toLocaleString() }} car.</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="text-[11px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">Cliquer pour déplier</span>
-                                <button @click.stop="clearAll" class="text-xs transition-colors text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                <span class="text-sm text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100 dark:text-zinc-400">Cliquer pour déplier</span>
+                                <button @click.stop="clearAll" class="rounded-lg p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800 cursor-pointer">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
                         </div>
-                        <div class="px-4 sm:px-6 py-3">
-                            <p class="text-sm leading-relaxed line-clamp-3 text-slate-500 dark:text-slate-400">{{ text }}</p>
+                        <div class="px-6 py-4">
+                            <p class="line-clamp-3 text-sm leading-7 text-zinc-500 dark:text-zinc-400">{{ text }}</p>
                         </div>
                     </div>
                     <!-- Expanded -->
                     <template v-else>
-                        <div class="p-4 sm:p-6">
+                        <div class="p-6 sm:p-8">
                             <textarea v-model="text" rows="18" :maxlength="maxChars" placeholder="Collez ou saisissez votre texte ici...
 
-Le texte doit contenir au minimum 10 caractères pour être analysé." class="w-full bg-transparent border-0 focus:outline-none focus:ring-0 resize-none text-[15px] leading-7 text-slate-800 dark:text-slate-200 placeholder-slate-300 dark:placeholder-slate-600" autofocus></textarea>
+Le texte doit contenir au minimum 10 caractères pour être analysé." class="w-full resize-none border-0 bg-transparent text-[15px] leading-7 text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500" autofocus></textarea>
                         </div>
-                        <div class="px-4 sm:px-6 py-3 border-t flex items-center justify-between border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-800/30">
+                        <div class="flex items-center justify-between border-t border-zinc-200 bg-zinc-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
                             <div class="flex items-center gap-1.5">
-                                <div class="w-20 h-1.5 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
-                                    <div class="h-full rounded-full transition-all duration-300" :class="charPercent > 90 ? 'bg-red-500' : charPercent > 70 ? 'bg-amber-500' : 'bg-blue-500'" :style="{ width: charPercent + '%' }"></div>
+                                <div class="h-2 w-24 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                                    <div class="h-full rounded-full transition-all duration-300" :class="charPercent > 90 ? 'bg-rose-500' : charPercent > 70 ? 'bg-amber-400' : 'bg-zinc-900'" :style="{ width: charPercent + '%' }"></div>
                                 </div>
-                                <span class="text-[11px] tabular-nums" :class="charColor">{{ charCount.toLocaleString() }} / {{ maxChars.toLocaleString() }}</span>
+                                <span class="text-sm tabular-nums" :class="charColor">{{ charCount.toLocaleString() }} / {{ maxChars.toLocaleString() }}</span>
                             </div>
-                            <button v-if="text" @click="clearAll" class="text-xs transition-colors text-slate-400 hover:text-red-500 flex items-center gap-1">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            <button v-if="text" @click="clearAll" class="flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-rose-500 dark:text-zinc-400 cursor-pointer">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                 Effacer tout
                             </button>
                         </div>
@@ -233,9 +230,9 @@ Le texte doit contenir au minimum 10 caractères pour être analysé." class="w-
                 <FileInput v-if="mode === 'file'" :file-name="fileName" :file-obj="fileObj" @select="selectFile" @remove="fileObj = null; fileName = null;" />
 
                 <!-- Analyze button -->
-                <button v-if="!loading" @click="analyze" :disabled="!canAnalyze" class="w-full relative overflow-hidden bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:from-slate-300 disabled:to-slate-300 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/25 disabled:shadow-none active:scale-[0.98] text-base">
+                <button v-if="!loading" @click="analyze" :disabled="!canAnalyze" class="w-full rounded-lg bg-zinc-900 px-6 py-4 text-base font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400">
                     <span class="flex items-center justify-center gap-2.5">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" /></svg>
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5m-16.5 6h16.5m-16.5 6H12" /></svg>
                         Lancer l'analyse
                     </span>
                 </button>
@@ -245,11 +242,11 @@ Le texte doit contenir au minimum 10 caractères pour être analysé." class="w-
 
                 <!-- Error -->
                 <transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-                    <div v-if="error" class="p-4 rounded-xl border flex items-start gap-3 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25">
-                        <svg class="w-5 h-5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                    <div v-if="error" class="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
                         <div>
-                            <p class="text-sm font-medium text-red-700 dark:text-red-400">Erreur d'analyse</p>
-                            <p class="text-sm text-red-600/80 dark:text-red-400/70 mt-0.5">{{ error }}</p>
+                            <p class="text-sm font-semibold text-rose-700">Erreur d'analyse</p>
+                            <p class="mt-0.5 text-sm text-rose-600">{{ error }}</p>
                         </div>
                     </div>
                 </transition>

@@ -249,7 +249,7 @@ async function confirmDeleteRecentDetection() {
                     </transition>
 
                     <!-- User bar -->
-                    <button @click="userMenuOpen = !userMenuOpen" class="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-200/50 dark:hover:bg-[#2a2a2a]">
+                    <button @click="userMenuOpen = !userMenuOpen" class="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-200/50 dark:hover:bg-[#2a2a2a] cursor-pointer">
                         <div class="shrink-0">
                             <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user.name" class="w-8 h-8 rounded-full object-cover" />
                             <div v-else class="w-8 h-8 rounded-full bg-slate-300 dark:bg-[#555] flex items-center justify-center text-white dark:text-[#ddd] text-xs font-semibold">
@@ -260,7 +260,10 @@ async function confirmDeleteRecentDetection() {
                             <p class="text-sm font-medium truncate text-slate-800 dark:text-[#ececec]">{{ user?.name }}</p>
                             <p class="text-[11px] truncate text-slate-400 dark:text-[#888]">{{ user?.status || (isSuperAdmin ? 'Super Admin' : 'Utilisateur') }}</p>
                         </div>
-                        <svg class="w-4 h-4 text-slate-400 dark:text-[#666] shrink-0 transition-transform" :class="userMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                        <svg class="w-4 h-4 text-slate-400 dark:text-[#666] shrink-0 transition-transform" :class="userMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 9.75L12 5.25l4.5 4.5" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25L12 18.75l4.5-4.5" />
+                        </svg>
                     </button>
                 </div>
             </aside>
