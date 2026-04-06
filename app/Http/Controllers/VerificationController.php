@@ -12,7 +12,7 @@ class VerificationController extends Controller
     public function notice(Request $request)
     {
         if ($request->user()->hasVerifiedEmail()) {
-            return redirect('/');
+            return redirect('/app');
         }
 
         return Inertia::render('Auth/VerifyEmail');
@@ -21,20 +21,20 @@ class VerificationController extends Controller
     public function verify(EmailVerificationRequest $request)
     {
         if ($request->user()->hasVerifiedEmail()) {
-            return redirect('/');
+            return redirect('/app');
         }
 
         if ($request->user()->markEmailAsVerified()) {
             event(new Verified($request->user()));
         }
 
-        return redirect('/');
+        return redirect('/app')->with('success', 'Email vérifié. Vous pouvez continuer.');
     }
 
     public function resend(Request $request)
     {
         if ($request->user()->hasVerifiedEmail()) {
-            return redirect('/');
+            return redirect('/app');
         }
 
         $request->user()->sendEmailVerificationNotification();

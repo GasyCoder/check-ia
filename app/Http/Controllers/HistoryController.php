@@ -2,16 +2,32 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Detection;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class HistoryController extends Controller
 {
+    private function referenceColumn(): string
+    {
+        return Detection::hasUuidColumn() ? 'uuid' : 'id';
+    }
+
     public function index(Request $request)
     {
+        $referenceColumn = $this->referenceColumn();
+
         $query = $request->user()
             ->detections()
-            ->select('id', 'user_id', 'text_excerpt', 'file_name', 'ai_probability', 'created_at')
+            ->select(array_values(array_unique([
+                'id',
+                $referenceColumn,
+                'user_id',
+                'text_excerpt',
+                'file_name',
+                'ai_probability',
+                'created_at',
+            ])))
             ->orderByDesc('created_at');
 
         if ($search = $request->input('search')) {
@@ -26,8 +42,15 @@ class HistoryController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
+        $detections = $query->paginate(20)->withQueryString();
+        $detections->getCollection()->transform(function ($detection) {
+            $detection->ensureUuid();
+            $detection->public_id = Detection::hasUuidColumn() ? $detection->uuid : (string) $detection->id;
+            return $detection;
+        });
+
         return Inertia::render('History', [
-            'detections' => $query->paginate(20)->withQueryString(),
+            'detections' => $detections,
             'filters' => [
                 'search' => $search,
                 'from' => $from,
@@ -38,19 +61,32 @@ class HistoryController extends Controller
 
     public function sidebar(Request $request)
     {
+        $referenceColumn = $this->referenceColumn();
+
         $recent = $request->user()
             ->detections()
-            ->select('id', 'text_excerpt', 'ai_probability', 'created_at')
+            ->select(array_values(array_unique([
+                'id',
+                $referenceColumn,
+                'text_excerpt',
+                'ai_probability',
+                'created_at',
+            ])))
             ->orderByDesc('created_at')
             ->limit(20)
             ->get();
 
+        $recent->each(function ($detection) {
+            $detection->ensureUuid();
+            $detection->public_id = Detection::hasUuidColumn() ? $detection->uuid : (string) $detection->id;
+        });
+
         return response()->json($recent);
     }
 
-    public function show(Request $request, int $id)
+    public function show(Request $request, string $ref)
     {
-        $detection = $request->user()->detections()->findOrFail($id);
+        $detection = $request->user()->detections()->where($this->referenceColumn(), $ref)->firstOrFail();
 
         return response()->json([
             'full_text' => $detection->full_text,
@@ -60,9 +96,9 @@ class HistoryController extends Controller
         ]);
     }
 
-    public function destroy(Request $request, int $id)
+    public function destroy(Request $request, string $ref)
     {
-        $request->user()->detections()->where('id', $id)->delete();
+        $request->user()->detections()->where($this->referenceColumn(), $ref)->delete();
 
         return back();
     }

@@ -14,6 +14,63 @@ class DetectionController extends Controller
     private const AI_SERVICE_URL = 'http://localhost:8000';
     private const CHUNK_THRESHOLD = 2000; // chars: above this, use chunk analysis
 
+    private function normalizeProbability(mixed $value): float
+    {
+        $probability = is_numeric($value) ? (float) $value : 0.0;
+
+        if ($probability >= 0 && $probability <= 1) {
+            $probability *= 100;
+        }
+
+        return round(max(0, min(100, $probability)), 1);
+    }
+
+    private function normalizeSentences(array $sentences): array
+    {
+        return array_values(array_filter(array_map(function ($sentence) {
+            if (!is_array($sentence)) {
+                return null;
+            }
+
+            $text = trim((string) ($sentence['text'] ?? ''));
+
+            if ($text === '') {
+                return null;
+            }
+
+            return [
+                ...$sentence,
+                'text' => $text,
+                'score' => $this->normalizeProbability($sentence['score'] ?? 0),
+            ];
+        }, $sentences)));
+    }
+
+    private function normalizeChunkResults(array $chunks): array
+    {
+        return array_values(array_filter(array_map(function ($chunk) {
+            if (!is_array($chunk)) {
+                return null;
+            }
+
+            $chunk['ai_probability'] = $this->normalizeProbability($chunk['ai_probability'] ?? 0);
+
+            if (isset($chunk['score_roberta']) && is_numeric($chunk['score_roberta'])) {
+                $chunk['score_roberta'] = (float) $chunk['score_roberta'];
+            }
+
+            if (isset($chunk['score_ppl']) && is_numeric($chunk['score_ppl'])) {
+                $chunk['score_ppl'] = (float) $chunk['score_ppl'];
+            }
+
+            if (isset($chunk['sentences']) && is_array($chunk['sentences'])) {
+                $chunk['sentences'] = $this->normalizeSentences($chunk['sentences']);
+            }
+
+            return $chunk;
+        }, $chunks)));
+    }
+
     /**
      * Guest analysis: limited to 20k chars, no history saved.
      */
@@ -32,8 +89,8 @@ class DetectionController extends Controller
 
             if ($response->successful()) {
                 return response()->json([
-                    'result' => $response->json('ai_probability'),
-                    'sentences' => $response->json('sentences', []),
+                    'result' => $this->normalizeProbability($response->json('ai_probability')),
+                    'sentences' => $this->normalizeSentences($response->json('sentences', [])),
                 ]);
             }
 
@@ -141,10 +198,10 @@ class DetectionController extends Controller
             ]);
 
             if ($response->successful()) {
-                $probability = $response->json('ai_probability');
-                $sentences = $response->json('sentences', []);
+                $probability = $this->normalizeProbability($response->json('ai_probability'));
+                $sentences = $this->normalizeSentences($response->json('sentences', []));
 
-                Detection::create([
+                $payload = [
                     'user_id' => auth()->id(),
                     'text_excerpt' => mb_substr($text, 0, 200),
                     'full_text' => $text,
@@ -152,7 +209,13 @@ class DetectionController extends Controller
                     'ai_probability' => $probability,
                     'chunk_results' => null,
                     'chunk_count' => 0,
-                ]);
+                ];
+
+                if (Detection::hasUuidColumn()) {
+                    $payload['uuid'] = (string) \Illuminate\Support\Str::uuid();
+                }
+
+                Detection::create($payload);
 
                 return response()->json([
                     'result' => $probability,
@@ -182,10 +245,10 @@ class DetectionController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                $probability = $data['ai_probability'];
-                $chunkResults = $data['chunks'] ?? [];
+                $probability = $this->normalizeProbability($data['ai_probability'] ?? 0);
+                $chunkResults = $this->normalizeChunkResults($data['chunks'] ?? []);
 
-                Detection::create([
+                $payload = [
                     'user_id' => auth()->id(),
                     'text_excerpt' => mb_substr($fullText, 0, 200),
                     'full_text' => $fullText,
@@ -193,7 +256,13 @@ class DetectionController extends Controller
                     'ai_probability' => $probability,
                     'chunk_results' => $chunkResults,
                     'chunk_count' => count($chunkResults),
-                ]);
+                ];
+
+                if (Detection::hasUuidColumn()) {
+                    $payload['uuid'] = (string) \Illuminate\Support\Str::uuid();
+                }
+
+                Detection::create($payload);
 
                 return response()->json([
                     'result' => $probability,

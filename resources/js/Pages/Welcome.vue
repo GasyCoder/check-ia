@@ -23,16 +23,21 @@ const maxChars = 1500000;
 const maxFileSize = 25 * 1024 * 1024;
 let progressInterval = null;
 
+function normalizePercent(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+
 onMounted(() => {
     const params = new URLSearchParams(window.location.search);
-    const detectionId = params.get('from_history');
-    if (detectionId) {
+    const detectionRef = params.get('analysis') || params.get('from_history');
+    if (detectionRef && detectionRef !== 'undefined' && detectionRef !== 'null') {
         loading.value = true;
         mode.value = 'text';
-        axios.get(`/history/${detectionId}`)
+        axios.get(`/history/${detectionRef}`)
             .then((res) => {
                 text.value = res.data.full_text || '';
-                result.value = res.data.ai_probability;
+                result.value = normalizePercent(res.data.ai_probability);
                 chunkResults.value = res.data.chunk_results || null;
                 textCollapsed.value = true;
             })
@@ -114,7 +119,7 @@ async function analyze() {
         if (mode.value === 'text') {
             const res = await axios.post('/analyze-text', { text: text.value }, { timeout: 300000 });
             stopProgress();
-            result.value = res.data.result;
+            result.value = normalizePercent(res.data.result);
             chunkResults.value = res.data.chunks || null;
             sentences.value = res.data.sentences || null;
         } else {
@@ -123,7 +128,7 @@ async function analyze() {
             const res = await axios.post('/analyze-file', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 });
             stopProgress();
             text.value = res.data.extracted_text || '';
-            result.value = res.data.result;
+            result.value = normalizePercent(res.data.result);
             chunkResults.value = res.data.chunks || null;
             sentences.value = res.data.sentences || null;
             preprocessing.value = res.data.preprocessing || null;

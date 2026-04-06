@@ -11,8 +11,13 @@ const props = defineProps({
 const search = ref(props.filters?.search || '');
 const from = ref(props.filters?.from || '');
 const to = ref(props.filters?.to || '');
-const confirmId = ref(null);
+const deleteDialogOpen = ref(false);
+const detectionToDelete = ref(null);
 let searchTimeout = null;
+
+function analysisLink(reference) {
+    return reference ? `/app?analysis=${reference}` : '/app';
+}
 
 function applyFilters() {
     const params = {};
@@ -34,14 +39,28 @@ function clearFilters() {
     router.get('/history', {}, { preserveState: true });
 }
 
-function deleteDetection(id) {
-    if (confirmId.value === id) {
-        router.delete(`/history/${id}`, { preserveScroll: true });
-        confirmId.value = null;
-    } else {
-        confirmId.value = id;
-        setTimeout(() => { confirmId.value = null; }, 3000);
+function requestDeleteDetection(detection) {
+    detectionToDelete.value = detection;
+    deleteDialogOpen.value = true;
+}
+
+function closeDeleteDialog() {
+    deleteDialogOpen.value = false;
+    detectionToDelete.value = null;
+}
+
+function confirmDeleteDetection() {
+    const reference = detectionToDelete.value?.public_id || detectionToDelete.value?.uuid || detectionToDelete.value?.id;
+
+    if (!reference) {
+        closeDeleteDialog();
+        return;
     }
+
+    router.delete(`/history/${reference}`, {
+        preserveScroll: true,
+        onFinish: closeDeleteDialog,
+    });
 }
 
 function formatDate(date) {
@@ -146,7 +165,7 @@ const hasFilters = () => search.value || from.value || to.value;
             <div v-else class="space-y-3">
                 <div
                     v-for="detection in detections.data"
-                    :key="detection.id"
+                    :key="detection.public_id || detection.uuid || detection.id"
                     class="group rounded-xl border p-4 sm:p-5 transition-all hover:shadow-md bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600/50"
                 >
                     <div class="flex items-start gap-4">
@@ -170,13 +189,13 @@ const hasFilters = () => search.value || from.value || to.value;
 
                         <!-- Actions -->
                         <div class="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <a :href="`/?from_history=${detection.id}`" class="p-2 rounded-lg transition-colors text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10" title="Reprendre">
+                            <a :href="analysisLink(detection.public_id || detection.uuid || detection.id)" class="p-2 rounded-lg transition-colors text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10" title="Reprendre">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" /></svg>
                             </a>
                             <button
-                                @click="deleteDetection(detection.id)"
-                                class="p-2 rounded-lg transition-all"
-                                :class="confirmId === detection.id ? 'bg-red-500 text-white opacity-100' : 'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'"
+                                @click="requestDeleteDetection(detection)"
+                                class="p-2 rounded-lg transition-all text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 cursor-pointer"
+                                title="Supprimer"
                             >
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                             </button>
@@ -192,6 +211,53 @@ const hasFilters = () => search.value || from.value || to.value;
                     <span v-else class="px-3 py-1.5 text-sm text-slate-300 dark:text-slate-600" v-html="link.label" />
                 </template>
             </div>
+
+            <transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="opacity-0"
+                enter-to-class="opacity-100"
+                leave-active-class="transition duration-100 ease-in"
+                leave-from-class="opacity-100"
+                leave-to-class="opacity-0"
+            >
+                <div v-if="deleteDialogOpen" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div class="absolute inset-0 bg-black/50" @click="closeDeleteDialog"></div>
+                    <div class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700/50 dark:bg-slate-900">
+                        <div class="flex items-start gap-3">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm9-3.758c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
+                                </svg>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <h3 class="text-base font-semibold text-slate-900 dark:text-white">Supprimer cette analyse ?</h3>
+                                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                                    Cette action retirera définitivement l’analyse de votre historique.
+                                </p>
+                                <p class="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
+                                    {{ detectionToDelete?.text_excerpt }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="mt-5 flex items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                                @click="closeDeleteDialog"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-500 cursor-pointer"
+                                @click="confirmDeleteDetection"
+                            >
+                                Supprimer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
         </div>
     </AppLayout>
 </template>

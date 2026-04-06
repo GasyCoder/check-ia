@@ -1,13 +1,16 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 
 const page = usePage();
 const sending = ref(false);
 const sent = ref(false);
 
+const email = computed(() => page.props.auth?.user?.email ?? '');
+
 function resend() {
     sending.value = true;
+
     router.post('/email/resend', {}, {
         onFinish: () => {
             sending.value = false;
@@ -22,35 +25,39 @@ function logout() {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-        <div class="w-full max-w-md text-center">
-            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-                <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                </svg>
-            </div>
-
-            <h1 class="text-2xl font-bold text-white mb-2">Vérifiez votre email</h1>
-            <p class="text-slate-400 text-sm mb-6">
-                Un lien de vérification a été envoyé à votre adresse email.
-                Cliquez sur le lien pour activer votre compte.
+    <div class="min-h-screen bg-slate-50 px-4 py-10">
+        <div class="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-950">Vérifiez votre email</h1>
+            <p class="mt-3 text-sm leading-7 text-slate-600">
+                Un lien de vérification a été envoyé à <span class="font-medium text-slate-900">{{ email || 'votre adresse email' }}</span>.
             </p>
 
-            <div class="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-6 space-y-4">
-                <div v-if="sent || page.props.flash?.success" class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
-                    <p class="text-emerald-400 text-sm">Un nouveau lien a été envoyé !</p>
-                </div>
+            <div v-if="sent || page.props.flash?.success" class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                Un nouveau lien a été envoyé.
+            </div>
 
+            <div class="mt-6 space-y-2 text-sm text-slate-600">
+                <p>1. Ouvrez votre boîte mail.</p>
+                <p>2. Cliquez sur le lien reçu.</p>
+                <p>3. Si besoin, renvoyez le lien ci-dessous.</p>
+            </div>
+
+            <div class="mt-6 space-y-3">
                 <button
-                    @click="resend"
+                    type="button"
                     :disabled="sending"
-                    class="w-full bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:from-slate-700 disabled:to-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-all"
+                    class="w-full rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    @click="resend"
                 >
                     <span v-if="sending">Envoi en cours...</span>
-                    <span v-else>Renvoyer le lien de vérification</span>
+                    <span v-else>Renvoyer le lien</span>
                 </button>
 
-                <button @click="logout" class="w-full text-sm text-slate-400 hover:text-slate-300 py-2 transition-colors">
+                <button
+                    type="button"
+                    class="w-full rounded-lg border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    @click="logout"
+                >
                     Se déconnecter
                 </button>
             </div>

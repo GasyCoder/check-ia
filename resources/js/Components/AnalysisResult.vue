@@ -16,49 +16,106 @@ function toggleChunk(i) {
 
 const humanPercent = computed(() => (100 - props.result).toFixed(1));
 const aiPercent = computed(() => props.result.toFixed(1));
+const copied = ref(false);
+
+function normalizePercent(value) {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric)) return 0;
+
+    if (numeric >= 0 && numeric <= 1) {
+        return Math.min(100, Math.max(0, numeric * 100));
+    }
+
+    return Math.min(100, Math.max(0, numeric));
+}
+
+function scoreMeta(score) {
+    const value = normalizePercent(score);
+
+    if (value >= 80) {
+        return {
+            title: 'IA détectée',
+            subtitle: 'Ce texte présente un signal fort de génération par intelligence artificielle.',
+            shortLabel: 'IA',
+            dot: 'bg-red-500',
+            bar: 'bg-red-500',
+            textColor: 'text-red-600 dark:text-red-400',
+            sentence: 'border-red-500/25 bg-red-500/20 text-red-800 dark:border-red-400/25 dark:bg-red-500/20 dark:text-red-200',
+            badge: 'bg-red-500/10 text-red-700 dark:bg-red-500/15 dark:text-red-300 border-red-500/20 dark:border-red-400/20',
+            legendText: 'text-red-600 dark:text-red-400',
+            legendSwatch: 'border-red-500/25 bg-red-500/20 dark:border-red-400/25 dark:bg-red-500/20',
+        };
+    }
+
+    if (value >= 60) {
+        return {
+            title: 'Probablement IA',
+            subtitle: 'Ce texte contient plusieurs signaux typiques d’un contenu généré par IA.',
+            shortLabel: 'Prob. IA',
+            dot: 'bg-orange-500',
+            bar: 'bg-orange-500',
+            textColor: 'text-orange-600 dark:text-orange-400',
+            sentence: 'border-orange-500/25 bg-orange-500/20 text-orange-800 dark:border-orange-400/25 dark:bg-orange-500/20 dark:text-orange-200',
+            badge: 'bg-orange-500/10 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300 border-orange-500/20 dark:border-orange-400/20',
+            legendText: 'text-orange-600 dark:text-orange-400',
+            legendSwatch: 'border-orange-500/25 bg-orange-500/20 dark:border-orange-400/25 dark:bg-orange-500/20',
+        };
+    }
+
+    if (value >= 30) {
+        return {
+            title: 'Incertain',
+            subtitle: 'Le texte présente un mélange de signaux humains et artificiels.',
+            shortLabel: 'Incertain',
+            dot: 'bg-amber-500',
+            bar: 'bg-amber-500',
+            textColor: 'text-amber-600 dark:text-amber-400',
+            sentence: 'border-amber-500/25 bg-amber-500/20 text-amber-800 dark:border-amber-400/25 dark:bg-amber-500/20 dark:text-amber-200',
+            badge: 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 border-amber-500/20 dark:border-amber-400/20',
+            legendText: 'text-amber-600 dark:text-amber-400',
+            legendSwatch: 'border-amber-500/25 bg-amber-500/20 dark:border-amber-400/25 dark:bg-amber-500/20',
+        };
+    }
+
+    return {
+        title: 'Écrit par un humain',
+        subtitle: 'Ce texte est très probablement rédigé par un être humain.',
+        shortLabel: 'Humain',
+        dot: 'bg-emerald-500',
+        bar: 'bg-emerald-500',
+        textColor: 'text-emerald-600 dark:text-emerald-400',
+        sentence: 'border-emerald-500/25 bg-emerald-500/20 text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/20 dark:text-emerald-200',
+        badge: 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 border-emerald-500/20 dark:border-emerald-400/20',
+        legendText: 'text-emerald-600 dark:text-emerald-400',
+        legendSwatch: 'border-emerald-500/25 bg-emerald-500/20 dark:border-emerald-400/25 dark:bg-emerald-500/20',
+    };
+}
 
 const v = computed(() => {
-    const val = props.result;
-    if (val >= 75) return { title: 'Contenu généré par IA', subtitle: 'Ce texte est très probablement écrit par une intelligence artificielle.', dot: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400' };
-    if (val >= 50) return { title: 'Probablement IA', subtitle: 'Ce texte présente de fortes caractéristiques de génération par IA.', dot: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400' };
-    if (val >= 25) return { title: 'Partiellement IA', subtitle: 'Ce texte pourrait contenir des passages générés par IA.', dot: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400' };
-    return { title: 'Écrit par un humain', subtitle: 'Ce texte est très probablement rédigé par un être humain.', dot: 'bg-emerald-500', textColor: 'text-emerald-600 dark:text-emerald-400' };
+    return scoreMeta(props.result);
 });
 
 const needleAngle = computed(() => -90 + (props.result / 100) * 180);
 
 function barColor(val) {
-    if (val >= 75) return 'bg-red-500';
-    if (val >= 50) return 'bg-orange-500';
-    if (val >= 25) return 'bg-amber-500';
-    return 'bg-emerald-500';
+    return scoreMeta(val).bar;
 }
 
-function sentenceBg(score) {
-    if (score >= 75) return 'bg-red-200/60 dark:bg-red-500/20';
-    if (score >= 50) return 'bg-orange-200/50 dark:bg-orange-500/15';
-    if (score >= 25) return 'bg-amber-100/60 dark:bg-amber-500/10';
-    return '';
+function sentenceClasses(score) {
+    return scoreMeta(score).sentence;
 }
 
-function sentenceUnderline(score) {
-    if (score >= 75) return 'decoration-red-400/60 dark:decoration-red-500/40 underline decoration-2 underline-offset-2';
-    if (score >= 50) return 'decoration-orange-400/50 dark:decoration-orange-500/30 underline decoration-2 underline-offset-2';
-    return '';
+function formatPercent(score) {
+    return `${normalizePercent(score).toFixed(1)}`;
 }
 
 function chunkBadgeColor(val) {
-    if (val >= 75) return 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/25';
-    if (val >= 50) return 'bg-orange-100 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/25';
-    if (val >= 25) return 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/25';
-    return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/25';
+    return scoreMeta(val).badge;
 }
 
 function chunkLabel(val) {
-    if (val >= 75) return 'IA';
-    if (val >= 50) return 'Prob. IA';
-    if (val >= 25) return 'Mixte';
-    return 'Humain';
+    return scoreMeta(val).shortLabel;
 }
 
 // For single text (no chunks), use the sentences prop directly
@@ -66,6 +123,42 @@ const displaySentences = computed(() => {
     if (props.sentences && props.sentences.length > 0) return props.sentences;
     return null;
 });
+
+const shareText = computed(() => {
+    return `Résultat ReinIA: ${v.value.title}. Score IA ${aiPercent.value}%, Humain ${humanPercent.value}%.`;
+});
+
+const shareUrl = computed(() => {
+    if (typeof window === 'undefined') return '';
+    return window.location.href;
+});
+
+const whatsappShareUrl = computed(() => `https://wa.me/?text=${encodeURIComponent(`${shareText.value} ${shareUrl.value}`)}`);
+const facebookShareUrl = computed(() => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl.value)}`);
+const emailShareUrl = computed(() => {
+    const subject = encodeURIComponent('Résultat d’analyse ReinIA');
+    const body = encodeURIComponent(`${shareText.value}\n\n${shareUrl.value}`);
+    return `mailto:?subject=${subject}&body=${body}`;
+});
+
+const legendItems = computed(() => ([
+    { label: 'IA détectée', ...scoreMeta(85) },
+    { label: 'Probablement IA', ...scoreMeta(70) },
+    { label: 'Incertain', ...scoreMeta(45) },
+    { label: 'Humain', ...scoreMeta(15) },
+]));
+
+async function copyShareText() {
+    try {
+        await navigator.clipboard.writeText(`${shareText.value} ${shareUrl.value}`.trim());
+        copied.value = true;
+        setTimeout(() => {
+            copied.value = false;
+        }, 2000);
+    } catch {
+        copied.value = false;
+    }
+}
 </script>
 
 <template>
@@ -122,7 +215,7 @@ const displaySentences = computed(() => {
 
                     <!-- Bar -->
                     <div class="mt-6">
-                        <div class="flex items-center justify-between text-xs mb-1.5 font-medium">
+                        <div class="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
                             <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Humain</span>
                             <span class="flex items-center gap-1.5">IA <span class="w-2 h-2 rounded-full bg-red-500"></span></span>
                         </div>
@@ -136,10 +229,61 @@ const displaySentences = computed(() => {
             <!-- LEGEND -->
             <div class="flex flex-wrap items-center gap-3 px-1 text-xs text-slate-500 dark:text-slate-400">
                 <span class="font-medium text-slate-600 dark:text-slate-300">Légende :</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-2 rounded-sm bg-red-200/80 dark:bg-red-500/25 border border-red-300 dark:border-red-500/30"></span> IA détectée</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-2 rounded-sm bg-orange-200/70 dark:bg-orange-500/20 border border-orange-300 dark:border-orange-500/25"></span> Probablement IA</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-2 rounded-sm bg-amber-100/80 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/20"></span> Incertain</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-2 rounded-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"></span> Humain</span>
+                <span
+                    v-for="item in legendItems"
+                    :key="item.label"
+                    class="flex items-center gap-1.5"
+                    :class="item.legendText"
+                >
+                    <span class="h-2.5 w-3 rounded-sm border" :class="item.legendSwatch"></span>
+                    {{ item.label }}
+                </span>
+            </div>
+
+            <!-- SHARE -->
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300">Partager le résultat</h3>
+                        <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Envoyer un résumé par WhatsApp, Facebook, email ou copier le texte.</p>
+                    </div>
+                    <span v-if="copied" class="text-xs font-medium text-emerald-600 dark:text-emerald-400">Copié</span>
+                </div>
+                <div class="px-6 py-4 flex flex-wrap gap-2">
+                    <a
+                        :href="whatsappShareUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        WhatsApp
+                    </a>
+                    <a
+                        :href="facebookShareUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                        Facebook
+                    </a>
+                    <a
+                        :href="emailShareUrl"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                        Email
+                    </a>
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+                        @click="copyShareText"
+                    >
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        Copier
+                    </button>
+                </div>
             </div>
 
             <!-- SINGLE TEXT SENTENCES (no chunks) -->
@@ -151,11 +295,16 @@ const displaySentences = computed(() => {
                 <div class="px-6 py-5">
                     <p class="text-sm leading-8 text-slate-700 dark:text-slate-300">
                         <template v-for="(sent, i) in displaySentences" :key="i">
-                            <span
-                                class="rounded px-0.5 py-0.5 transition-colors cursor-default"
-                                :class="[sentenceBg(sent.score), sentenceUnderline(sent.score)]"
-                                :title="`Score IA : ${sent.score}%`"
-                            >{{ sent.text }}</span>{{ ' ' }}
+                            <span class="group/sentence relative inline-block align-baseline">
+                                <span
+                                    class="inline-block rounded-md border px-1.5 py-1 transition-colors duration-150 cursor-default"
+                                    :class="sentenceClasses(sent.score)"
+                                    :title="`Score IA : ${formatPercent(sent.score)}%`"
+                                >{{ sent.text }}</span>
+                                <span class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/sentence:opacity-100 dark:bg-slate-100 dark:text-slate-900">
+                                    IA {{ formatPercent(sent.score) }}%
+                                </span>
+                            </span>{{ ' ' }}
                         </template>
                     </p>
                 </div>
@@ -213,7 +362,7 @@ const displaySentences = computed(() => {
                             <div class="w-20 h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                                 <div class="h-full rounded-full transition-all duration-700" :class="barColor(chunk.ai_probability)" :style="{ width: chunk.ai_probability + '%' }"></div>
                             </div>
-                            <span class="text-sm font-bold tabular-nums min-w-[3rem] text-right" :class="chunk.ai_probability >= 50 ? 'text-red-500' : chunk.ai_probability >= 25 ? 'text-amber-500' : 'text-emerald-500'">
+                            <span class="text-sm font-bold tabular-nums min-w-[3rem] text-right" :class="scoreMeta(chunk.ai_probability).textColor">
                                 {{ Math.round(chunk.ai_probability) }}%
                             </span>
                             <span class="text-[10px] font-medium px-2 py-0.5 rounded-full border" :class="chunkBadgeColor(chunk.ai_probability)">
@@ -241,7 +390,7 @@ const displaySentences = computed(() => {
                                     Perplexité : <span class="font-semibold text-slate-700 dark:text-slate-300">{{ (chunk.score_ppl * 100).toFixed(1) }}%</span>
                                 </span>
                                 <span class="text-slate-500 dark:text-slate-400">
-                                    Score final : <span class="font-bold" :class="chunk.ai_probability >= 50 ? 'text-red-500' : chunk.ai_probability >= 25 ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'">{{ chunk.ai_probability.toFixed(1) }}%</span>
+                                    Score final : <span class="font-bold" :class="scoreMeta(chunk.ai_probability).textColor">{{ chunk.ai_probability.toFixed(1) }}%</span>
                                 </span>
                             </div>
 
@@ -249,11 +398,16 @@ const displaySentences = computed(() => {
                             <div class="px-5 py-5 border-t border-slate-100 dark:border-slate-800/60">
                                 <p v-if="chunk.sentences && chunk.sentences.length > 0" class="text-sm leading-8 text-slate-700 dark:text-slate-300">
                                     <template v-for="(sent, j) in chunk.sentences" :key="j">
-                                        <span
-                                            class="rounded px-0.5 py-0.5 transition-colors cursor-default"
-                                            :class="[sentenceBg(sent.score), sentenceUnderline(sent.score)]"
-                                            :title="`Score IA : ${sent.score}%`"
-                                        >{{ sent.text }}</span>{{ ' ' }}
+                                        <span class="group/sentence relative inline-block align-baseline">
+                                            <span
+                                                class="inline-block rounded-md border px-1.5 py-1 transition-colors duration-150 cursor-default"
+                                                :class="sentenceClasses(sent.score)"
+                                                :title="`Score IA : ${formatPercent(sent.score)}%`"
+                                            >{{ sent.text }}</span>
+                                            <span class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/sentence:opacity-100 dark:bg-slate-100 dark:text-slate-900">
+                                                IA {{ formatPercent(sent.score) }}%
+                                            </span>
+                                        </span>{{ ' ' }}
                                     </template>
                                 </p>
                                 <p v-else-if="chunk.text" class="text-sm leading-7 text-slate-600 dark:text-slate-400 whitespace-pre-line">{{ chunk.text }}</p>

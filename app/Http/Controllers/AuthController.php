@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -26,6 +27,11 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+
+            if (!$request->user()->hasVerifiedEmail()) {
+                return redirect()->route('verification.notice');
+            }
+
             return redirect()->intended('/app');
         }
 
@@ -54,9 +60,12 @@ class AuthController extends Controller
             'role' => 'user',
         ]);
 
+        event(new Registered($user));
+
         Auth::login($user);
 
-        return redirect('/app');
+        return redirect()->route('verification.notice')
+            ->with('success', 'Un email de vérification vient d’être envoyé.');
     }
 
     public function logout(Request $request)
@@ -102,9 +111,10 @@ class AuthController extends Controller
             ]);
         }
 
-        // Auto-verify email for Google users
-        if (!$user->email_verified_at) {
-            $user->update(['email_verified_at' => now()]);
+        // Google accounts should bypass email verification entirely.
+        if (!$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+            $user->refresh();
         }
 
         Auth::login($user, true);

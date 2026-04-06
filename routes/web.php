@@ -60,8 +60,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
     Route::get('/history/sidebar', [HistoryController::class, 'sidebar'])->name('history.sidebar');
-    Route::get('/history/{id}', [HistoryController::class, 'show'])->name('history.show');
-    Route::delete('/history/{id}', [HistoryController::class, 'destroy'])->name('history.destroy');
+    Route::get('/history/{uuid}', [HistoryController::class, 'show'])->name('history.show');
+    Route::delete('/history/{uuid}', [HistoryController::class, 'destroy'])->name('history.destroy');
 
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
