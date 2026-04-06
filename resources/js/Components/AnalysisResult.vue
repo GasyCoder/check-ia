@@ -14,8 +14,10 @@ function toggleChunk(i) {
     expandedChunks.value[i] = !expandedChunks.value[i];
 }
 
-const humanPercent = computed(() => (100 - props.result).toFixed(1));
-const aiPercent = computed(() => props.result.toFixed(1));
+const aiScore = computed(() => normalizePercent(props.result));
+const humanScore = computed(() => Math.max(0, 100 - aiScore.value));
+const humanPercent = computed(() => humanScore.value.toFixed(1));
+const aiPercent = computed(() => aiScore.value.toFixed(1));
 const copied = ref(false);
 
 function normalizePercent(value) {
@@ -92,6 +94,36 @@ function scoreMeta(score) {
     };
 }
 
+function sentenceMeta(score) {
+    const value = normalizePercent(score);
+
+    if (value >= 76) {
+        return {
+            textColor: 'text-red-800 dark:text-red-200',
+            badge: 'border-red-500/30 bg-red-500/15 shadow-[inset_4px_0_0_rgba(239,68,68,0.85)] dark:border-red-400/30 dark:bg-red-500/20',
+        };
+    }
+
+    if (value >= 51) {
+        return {
+            textColor: 'text-orange-800 dark:text-orange-200',
+            badge: 'border-orange-500/30 bg-orange-500/15 shadow-[inset_4px_0_0_rgba(249,115,22,0.8)] dark:border-orange-400/30 dark:bg-orange-500/20',
+        };
+    }
+
+    if (value >= 26) {
+        return {
+            textColor: 'text-amber-900 dark:text-amber-100',
+            badge: 'border-amber-400/35 bg-amber-300/20 shadow-[inset_4px_0_0_rgba(234,179,8,0.75)] dark:border-amber-300/30 dark:bg-amber-400/15',
+        };
+    }
+
+    return {
+        textColor: 'text-emerald-800 dark:text-emerald-200',
+        badge: 'border-emerald-500/30 bg-emerald-500/10 shadow-[inset_4px_0_0_rgba(34,197,94,0.78)] dark:border-emerald-400/30 dark:bg-emerald-500/15',
+    };
+}
+
 const v = computed(() => {
     return scoreMeta(props.result);
 });
@@ -102,8 +134,56 @@ function barColor(val) {
     return scoreMeta(val).bar;
 }
 
-function sentenceClasses(score) {
-    return scoreMeta(score).sentence;
+function authenticityBarColor(val) {
+    const humanValue = normalizePercent(val);
+
+    if (humanValue > 60) {
+        return 'bg-emerald-500';
+    }
+
+    if (humanValue >= 40) {
+        return 'bg-amber-500';
+    }
+
+    return 'bg-red-500';
+}
+
+function sentenceVisualScore(score, contextScore = props.result) {
+    const sentenceScore = normalizePercent(score);
+    const context = normalizePercent(contextScore);
+
+    if (context >= 26 && context <= 50) {
+        if (sentenceScore >= 18) {
+            return Math.max(sentenceScore, 28);
+        }
+
+        return sentenceScore;
+    }
+
+    if (context >= 51 && context <= 75) {
+        if (sentenceScore >= 34) {
+            return Math.max(sentenceScore, 52);
+        }
+
+        return sentenceScore;
+    }
+
+    if (context >= 76 && sentenceScore >= 50) {
+        return Math.max(sentenceScore, 76);
+    }
+
+    return sentenceScore;
+}
+
+function sentenceClasses(score, contextScore = props.result) {
+    const meta = sentenceMeta(sentenceVisualScore(score, contextScore));
+
+    return [
+        'inline-block rounded-md border px-2 py-1 transition-all duration-300 ease-out cursor-default',
+        'hover:-translate-y-[1px] hover:shadow-sm',
+        meta.textColor,
+        meta.badge,
+    ];
 }
 
 function formatPercent(score) {
@@ -116,6 +196,10 @@ function chunkBadgeColor(val) {
 
 function chunkLabel(val) {
     return scoreMeta(val).shortLabel;
+}
+
+function sentenceTooltip(score, contextScore = props.result) {
+    return `Score IA : ${formatPercent(sentenceVisualScore(score, contextScore))}%`;
 }
 
 // For single text (no chunks), use the sentences prop directly
@@ -220,7 +304,7 @@ async function copyShareText() {
                             <span class="flex items-center gap-1.5">IA <span class="w-2 h-2 rounded-full bg-red-500"></span></span>
                         </div>
                         <div class="w-full h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                            <div class="h-full rounded-full transition-all duration-1000 ease-out" :class="barColor(result)" :style="{ width: result + '%' }"></div>
+                            <div class="h-full rounded-full transition-all duration-1000 ease-out" :class="authenticityBarColor(humanScore)" :style="{ width: humanScore + '%' }"></div>
                         </div>
                     </div>
                 </div>
@@ -297,12 +381,11 @@ async function copyShareText() {
                         <template v-for="(sent, i) in displaySentences" :key="i">
                             <span class="group/sentence relative inline-block align-baseline">
                                 <span
-                                    class="inline-block rounded-md border px-1.5 py-1 transition-colors duration-150 cursor-default"
-                                    :class="sentenceClasses(sent.score)"
-                                    :title="`Score IA : ${formatPercent(sent.score)}%`"
+                                    :class="sentenceClasses(sent.score, result)"
+                                    :title="sentenceTooltip(sent.score, result)"
                                 >{{ sent.text }}</span>
                                 <span class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/sentence:opacity-100 dark:bg-slate-100 dark:text-slate-900">
-                                    IA {{ formatPercent(sent.score) }}%
+                                    IA {{ formatPercent(sentenceVisualScore(sent.score, result)) }}%
                                 </span>
                             </span>{{ ' ' }}
                         </template>
@@ -400,12 +483,11 @@ async function copyShareText() {
                                     <template v-for="(sent, j) in chunk.sentences" :key="j">
                                         <span class="group/sentence relative inline-block align-baseline">
                                             <span
-                                                class="inline-block rounded-md border px-1.5 py-1 transition-colors duration-150 cursor-default"
-                                                :class="sentenceClasses(sent.score)"
-                                                :title="`Score IA : ${formatPercent(sent.score)}%`"
+                                                :class="sentenceClasses(sent.score, chunk.ai_probability)"
+                                                :title="sentenceTooltip(sent.score, chunk.ai_probability)"
                                             >{{ sent.text }}</span>
                                             <span class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/sentence:opacity-100 dark:bg-slate-100 dark:text-slate-900">
-                                                IA {{ formatPercent(sent.score) }}%
+                                                IA {{ formatPercent(sentenceVisualScore(sent.score, chunk.ai_probability)) }}%
                                             </span>
                                         </span>{{ ' ' }}
                                     </template>

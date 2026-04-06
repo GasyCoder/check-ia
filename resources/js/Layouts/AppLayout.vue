@@ -135,7 +135,15 @@ async function confirmDeleteRecentDetection() {
                 <!-- Header: logo + new analysis -->
                 <div class="px-3 pt-3 pb-1 shrink-0">
                     <div class="flex items-center justify-between mb-3 px-1">
-                        <span class="text-lg font-semibold tracking-tight text-slate-900 dark:text-[#ececec]">ReinIA</span>
+                        <a href="/app" class="flex min-w-0 items-center gap-3" @click="sidebarOpen = false">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                                <span class="h-4 w-4 rounded-full bg-teal-500 dark:bg-cyan-400"></span>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-semibold tracking-tight text-slate-950 dark:text-white sm:text-base">ReinIA</span>
+                                <span class="block text-xs text-slate-500 dark:text-slate-400">Détection de texte IA</span>
+                            </span>
+                        </a>
                         <button @click="sidebarOpen = false" class="lg:hidden p-1 rounded-md text-slate-400 dark:text-[#999] hover:bg-slate-200 dark:hover:bg-[#2a2a2a]">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>

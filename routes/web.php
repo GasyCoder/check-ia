@@ -59,6 +59,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('faq');
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
+    Route::get('/history/export/{format}', [HistoryController::class, 'export'])->name('history.export');
     Route::get('/history/sidebar', [HistoryController::class, 'sidebar'])->name('history.sidebar');
     Route::get('/history/{uuid}', [HistoryController::class, 'show'])->name('history.show');
     Route::delete('/history/{uuid}', [HistoryController::class, 'destroy'])->name('history.destroy');

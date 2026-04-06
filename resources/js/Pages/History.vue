@@ -19,6 +19,18 @@ function analysisLink(reference) {
     return reference ? `/app?analysis=${reference}` : '/app';
 }
 
+function exportUrl(format) {
+    const params = new URLSearchParams();
+
+    if (search.value) params.set('search', search.value);
+    if (from.value) params.set('from', from.value);
+    if (to.value) params.set('to', to.value);
+
+    const query = params.toString();
+
+    return `/history/export/${format}${query ? `?${query}` : ''}`;
+}
+
 function applyFilters() {
     const params = {};
     if (search.value) params.search = search.value;
@@ -94,6 +106,27 @@ const hasFilters = () => search.value || from.value || to.value;
                 <div>
                     <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Historique</h1>
                     <p class="mt-1 text-slate-500 dark:text-slate-400">{{ detections.total || 0 }} analyse(s) au total</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Exporter</span>
+                    <a
+                        :href="exportUrl('json')"
+                        class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        JSON
+                    </a>
+                    <a
+                        :href="exportUrl('csv')"
+                        class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        CSV
+                    </a>
+                    <a
+                        :href="exportUrl('txt')"
+                        class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        TXT
+                    </a>
                 </div>
             </div>
 

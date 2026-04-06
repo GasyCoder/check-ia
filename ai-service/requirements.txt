@@ -3,4 +3,5 @@ uvicorn[standard]
 transformers
 torch
 numpy
+scipy
 sentencepiece
