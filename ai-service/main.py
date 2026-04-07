@@ -16,31 +16,60 @@ from transformers import (
 
 app = FastAPI()
 
-DETECTOR_MODEL_NAME = "Hello-SimpleAI/chatgpt-detector-roberta"
-PERPLEXITY_MODEL_NAME = "gpt2"
+# ═══════════════════════════════════════════
+# Model configuration — Multi-model ensemble
+# ═══════════════════════════════════════════
+
+# Detector 1: RoBERTa-base fine-tuned on ChatGPT output
+DETECTOR1_NAME = "Hello-SimpleAI/chatgpt-detector-roberta"
+
+# Detector 2: RoBERTa-large fine-tuned by OpenAI (better on longer texts)
+DETECTOR2_NAME = "openai-community/roberta-large-openai-detector"
+
+# Perplexity models for Binoculars-style cross-perplexity
+PPL_SMALL_NAME = "gpt2"
+PPL_MEDIUM_NAME = "gpt2-medium"
+
+# Translation
 TRANSLATION_MODEL_NAME = "Helsinki-NLP/opus-mt-fr-en"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PIPELINE_DEVICE = 0 if DEVICE.type == "cuda" else -1
 
-# RoBERTa detector for GPT-4/GPT-5 style text detection.
-detector = pipeline(
+print("[INIT] Loading Detector 1 (RoBERTa-base ChatGPT)...")
+detector1 = pipeline(
     "text-classification",
-    model=DETECTOR_MODEL_NAME,
-    tokenizer=DETECTOR_MODEL_NAME,
+    model=DETECTOR1_NAME,
+    tokenizer=DETECTOR1_NAME,
     top_k=None,
     device=PIPELINE_DEVICE,
 )
 
-# GPT-style language model for perplexity scoring.
-perplexity_tokenizer = AutoTokenizer.from_pretrained(PERPLEXITY_MODEL_NAME, use_fast=True)
-perplexity_model = AutoModelForCausalLM.from_pretrained(PERPLEXITY_MODEL_NAME).to(DEVICE)
-perplexity_model.eval()
+print("[INIT] Loading Detector 2 (RoBERTa-large OpenAI)...")
+detector2 = pipeline(
+    "text-classification",
+    model=DETECTOR2_NAME,
+    tokenizer=DETECTOR2_NAME,
+    top_k=None,
+    device=PIPELINE_DEVICE,
+)
 
-# Translation model to normalize French input before detector/perplexity scoring.
+print("[INIT] Loading GPT-2 (small) for perplexity...")
+ppl_small_tokenizer = AutoTokenizer.from_pretrained(PPL_SMALL_NAME, use_fast=True)
+ppl_small_model = AutoModelForCausalLM.from_pretrained(PPL_SMALL_NAME).to(DEVICE)
+ppl_small_model.eval()
+
+print("[INIT] Loading GPT-2 Medium for cross-perplexity...")
+ppl_medium_tokenizer = AutoTokenizer.from_pretrained(PPL_MEDIUM_NAME, use_fast=True)
+ppl_medium_model = AutoModelForCausalLM.from_pretrained(PPL_MEDIUM_NAME).to(DEVICE)
+ppl_medium_model.eval()
+
+print("[INIT] Loading translation model (FR→EN)...")
 translator_tokenizer = AutoTokenizer.from_pretrained(TRANSLATION_MODEL_NAME)
 translator_model = AutoModelForSeq2SeqLM.from_pretrained(TRANSLATION_MODEL_NAME).to(DEVICE)
 translator_model.eval()
+
+print("[INIT] All models loaded.")
 
 
 def _clamp(score: float, lower: float = 0.0, upper: float = 0.999) -> float:
@@ -102,7 +131,7 @@ def translate_to_english(text: str) -> str:
 
 
 # ═══════════════════════════════════════════
-# Method 1: RoBERTa detector
+# RoBERTa detectors (shared logic)
 # ═══════════════════════════════════════════
 
 def _label_is_ai(label: str) -> bool:
@@ -141,13 +170,14 @@ def _extract_model_score(results) -> float:
     return 0.5
 
 
-def roberta_score(text: str) -> float:
+def _run_detector(det_pipeline, text: str) -> float:
+    """Run a single RoBERTa detector with sliding window for long texts."""
     words = text.split()
     if not words:
         return 0.0
 
     if len(words) <= 320:
-        results = detector(text, truncation=True, max_length=512)
+        results = det_pipeline(text, truncation=True, max_length=512)
         return _extract_model_score(results)
 
     chunk_size = 320
@@ -160,7 +190,7 @@ def roberta_score(text: str) -> float:
             continue
 
         chunk = " ".join(chunk_words)
-        results = detector(chunk, truncation=True, max_length=512)
+        results = det_pipeline(chunk, truncation=True, max_length=512)
         weighted_scores.append((_extract_model_score(results), len(chunk_words)))
 
     if not weighted_scores:
@@ -171,23 +201,33 @@ def roberta_score(text: str) -> float:
     return _clamp(float(np.average(scores, weights=weights)))
 
 
+def roberta_score(text: str) -> float:
+    """Detector 1: RoBERTa-base (ChatGPT-trained)."""
+    return _run_detector(detector1, text)
+
+
+def roberta_large_score(text: str) -> float:
+    """Detector 2: RoBERTa-large (OpenAI-trained)."""
+    return _run_detector(detector2, text)
+
+
 # ═══════════════════════════════════════════
-# Method 2: Perplexity & burstiness
+# Perplexity & Binoculars-style detection
 # ═══════════════════════════════════════════
 
-def compute_perplexity(text: str) -> float:
+def _compute_perplexity_with_model(text: str, tokenizer, model) -> float:
     cleaned = text.strip()
     if len(cleaned.split()) < 3:
         return 999.0
 
-    encodings = perplexity_tokenizer(cleaned, return_tensors="pt")
+    encodings = tokenizer(cleaned, return_tensors="pt")
     input_ids = encodings["input_ids"].to(DEVICE)
     seq_len = input_ids.size(1)
 
     if seq_len < 2:
         return 999.0
 
-    max_length = min(getattr(perplexity_model.config, "n_positions", 1024), 1024)
+    max_length = min(getattr(model.config, "n_positions", 1024), 1024)
     stride = min(256, max_length // 2)
     nlls = []
     prev_end_loc = 0
@@ -201,7 +241,7 @@ def compute_perplexity(text: str) -> float:
         target_ids[:, :-target_len] = -100
 
         with torch.no_grad():
-            outputs = perplexity_model(input_ids_slice, labels=target_ids)
+            outputs = model(input_ids_slice, labels=target_ids)
 
         nlls.append(outputs.loss * target_len)
         prev_end_loc = end_loc
@@ -217,6 +257,48 @@ def compute_perplexity(text: str) -> float:
         return 999.0
 
     return float(perplexity)
+
+
+def compute_perplexity(text: str) -> float:
+    """Perplexity using GPT-2 small."""
+    return _compute_perplexity_with_model(text, ppl_small_tokenizer, ppl_small_model)
+
+
+def compute_perplexity_medium(text: str) -> float:
+    """Perplexity using GPT-2 medium."""
+    return _compute_perplexity_with_model(text, ppl_medium_tokenizer, ppl_medium_model)
+
+
+def binoculars_score(text: str) -> float:
+    """Binoculars-style: compare perplexity ratio between small and medium GPT-2.
+
+    AI text has similar perplexity across model sizes (both predict it well).
+    Human text shows a bigger gap (medium handles it better than small).
+
+    Returns 0.0 (human) to 1.0 (AI).
+    """
+    ppl_small = compute_perplexity(text)
+    ppl_medium = compute_perplexity_medium(text)
+
+    if ppl_small > 900 or ppl_medium > 900:
+        return 0.5  # Can't determine
+
+    # Ratio: how much better is medium vs small?
+    # Low ratio (close to 1.0) → both models equally good → AI text
+    # High ratio (>> 1.0) → medium much better → human text
+    ratio = ppl_small / max(ppl_medium, 1.0)
+
+    if ratio < 1.15:
+        return 0.92  # Very similar perplexity → strong AI signal
+    if ratio < 1.30:
+        return 0.78
+    if ratio < 1.50:
+        return 0.60
+    if ratio < 1.80:
+        return 0.40
+    if ratio < 2.20:
+        return 0.22
+    return 0.08  # Big gap → likely human
 
 
 def _perplexity_to_score(perplexity: float) -> float:
@@ -269,7 +351,6 @@ def analyze_style(text: str, english_text: Optional[str] = None) -> dict:
 
     style_score = perplexity_score * 0.65 + burstiness_score * 0.35
 
-    # Low perplexity is the strongest secondary indicator for current LLM output.
     if perplexity < 20:
         style_score += 0.14
     elif perplexity < 30:
@@ -295,7 +376,7 @@ def analyze_style(text: str, english_text: Optional[str] = None) -> dict:
 
 
 # ═══════════════════════════════════════════
-# Combined prediction
+# Ensemble: combine all signals
 # ═══════════════════════════════════════════
 
 class TextRequest(BaseModel):
@@ -321,16 +402,10 @@ def _score_sentence_quick(sentence: str) -> float:
 
 
 def _analyze_sentences(text: str, global_score: float = 0.0) -> list[dict]:
-    """Score each sentence relative to each other, then redistribute around the global score.
-
-    Per-sentence RoBERTa/perplexity is used only for ranking (which sentences
-    are MORE vs LESS likely AI).  The absolute scale is anchored to the global
-    score so that the visual coloring is consistent with the gauge.
-    """
+    """Score each sentence relative to each other, then redistribute around the global score."""
     raw_sentences = re.split(r"(?<=[.!?:;])\s+", text)
     entries: list[dict] = []
 
-    # --- Pass 1: collect raw per-sentence signals for ranking ---------------
     for sentence in raw_sentences:
         sentence = sentence.strip()
         if len(sentence) < 10:
@@ -339,7 +414,6 @@ def _analyze_sentences(text: str, global_score: float = 0.0) -> list[dict]:
             continue
 
         if len(sentence.split()) < 5:
-            # Too short – no independent signal
             entries.append({"text": sentence, "raw": None})
         else:
             ppl_score = _score_sentence_quick(sentence)
@@ -356,49 +430,78 @@ def _analyze_sentences(text: str, global_score: float = 0.0) -> list[dict]:
     if not entries:
         return []
 
-    # --- Pass 2: redistribute around global_score --------------------------
     raw_scores = [e["raw"] for e in entries if e["raw"] is not None]
 
     if not raw_scores:
-        # All sentences too short – just assign global score
         return [{"text": e["text"], "score": round(global_score * 100, 1)} for e in entries]
 
-    raw_mean = sum(raw_scores) / len(raw_scores)
-    raw_std = (sum((r - raw_mean) ** 2 for r in raw_scores) / len(raw_scores)) ** 0.5
+    # Sort raw scores to determine percentile rank of each sentence
+    sorted_raw = sorted(raw_scores)
+    n = len(sorted_raw)
+
+    def percentile_rank(value: float) -> float:
+        """Where does this value fall among all sentences? 0.0 = lowest, 1.0 = highest."""
+        if n <= 1:
+            return 0.5
+        pos = 0
+        for s in sorted_raw:
+            if s < value:
+                pos += 1
+            elif s == value:
+                pos += 0.5
+                break
+        return pos / n
+
+    # Map percentile rank onto a score range centered on global_score.
+    # The lowest-ranked sentence gets a score well below global,
+    # the highest-ranked gets a score well above global.
+    # The spread ensures visible green/red differentiation.
+    global_pct = global_score * 100
+    # Range: the lower the global score, the more room above; the higher, more room below.
+    spread_below = min(global_pct, 40.0)     # How far below global the greenest sentence can go
+    spread_above = min(100 - global_pct, 40.0)  # How far above global the reddest sentence can go
 
     result = []
     for entry in entries:
         if entry["raw"] is None:
-            score = global_score * 100
+            score = global_pct
         else:
-            if raw_std < 0.01:
-                # All sentences score the same – no variation to spread
-                score = global_score * 100
+            rank = percentile_rank(entry["raw"])
+            # rank 0.0 → most human → global - spread_below
+            # rank 0.5 → average → global
+            # rank 1.0 → most AI → global + spread_above
+            if rank <= 0.5:
+                # Below average: interpolate between (global - spread_below) and global
+                t = rank / 0.5  # 0.0 to 1.0
+                score = (global_pct - spread_below) + t * spread_below
             else:
-                # How many std-devs above/below the mean this sentence is
-                z = (entry["raw"] - raw_mean) / raw_std
-                # Spread: each std-dev shifts ±12 percentage points from global
-                score = global_score * 100 + z * 12.0
-            score = max(0.0, min(100.0, score))
-            score = round(score, 1)
+                # Above average: interpolate between global and (global + spread_above)
+                t = (rank - 0.5) / 0.5  # 0.0 to 1.0
+                score = global_pct + t * spread_above
+            score = max(0.0, min(100.0, round(score, 1)))
         result.append({"text": entry["text"], "score": score})
 
     return result
 
 
-def _build_result(global_score: float, model_score: float, style: dict, include_sentences: bool, text: str) -> dict:
+def _build_result(global_score: float, scores: dict, style: dict, include_sentences: bool, text: str) -> dict:
     result = {
         "global_score": round(global_score, 4),
-        "model_score": round(model_score, 4),
+        "model_score": round(scores["roberta_base"], 4),
+        "model_score_large": round(scores["roberta_large"], 4),
+        "binoculars_score": round(scores["binoculars"], 4),
         "style_score": round(style["style_score"], 4),
         "perplexity": style["perplexity"],
+        "perplexity_medium": round(scores.get("ppl_medium", 0), 4),
         "burstiness": style["burstiness"],
         "burstiness_cv": style["burstiness_cv"],
         "perplexity_score": style["perplexity_score"],
         "burstiness_score": style["burstiness_score"],
-        # Compatibility aliases for the Laravel app.
+        # Compatibility aliases
         "ai_probability": round(global_score * 100, 2),
-        "score_roberta": round(model_score, 4),
+        "score_roberta": round(scores["roberta_base"], 4),
+        "score_roberta_large": round(scores["roberta_large"], 4),
+        "score_binoculars": round(scores["binoculars"], 4),
         "score_ppl": round(style["perplexity_score"], 4),
     }
 
@@ -408,10 +511,67 @@ def _build_result(global_score: float, model_score: float, style: dict, include_
     return result
 
 
+def _detect_academic_density(text: str) -> float:
+    """Detect academic writing markers. Returns 0.0 (not academic) to 1.0 (very academic).
+
+    Academic text has citations, references, formal structure — these are strong
+    human signals because LLMs rarely produce proper inline citations.
+    """
+    # Inline citations: (Author, Year), (Author et al., Year), (Name, Year; Name, Year)
+    citations = re.findall(r"\([A-ZÀ-Ü][a-zà-ü]+(?:\s+et\s+al\.?)?,?\s*\d{4}[a-z]?\)", text)
+    # Also match multi-author citations like (AUF et al., 2022)
+    citations += re.findall(r"\([A-ZÀ-Ü]{2,}(?:\s+et\s+al\.?)?,?\s*\d{4}[a-z]?\)", text)
+    # Reference-style markers
+    citations += re.findall(r"\([^)]*\d{4}[a-z]?[^)]*\)", text)
+
+    # Deduplicate
+    citation_count = len(set(citations))
+
+    # Count sentences for density
+    sentence_count = max(len(re.split(r"(?<=[.!?])\s+", text)), 1)
+    citation_density = citation_count / sentence_count
+
+    # Academic vocabulary
+    academic_words = [
+        r"\bselon\b", r"\bd'après\b", r"\bétude\b", r"\brecherche\b",
+        r"\banalyse\b", r"\blittérature\b", r"\bméthodologie\b",
+        r"\bhypothèse\b", r"\brésultats\b", r"\bconclusion\b",
+        r"\bcf\.\b", r"\bibid\b", r"\bop\.?\s*cit\b",
+        r"\baccording\s+to\b", r"\bstudy\b", r"\bresearch\b",
+        r"\bfindings\b", r"\bliterature\b", r"\bmethodology\b",
+    ]
+    word_count = max(len(text.split()), 1)
+    academic_hits = sum(len(re.findall(p, text, re.IGNORECASE)) for p in academic_words)
+    academic_word_density = academic_hits / word_count
+
+    # Combine signals
+    score = 0.0
+    if citation_count >= 5:
+        score += 0.50
+    elif citation_count >= 3:
+        score += 0.35
+    elif citation_count >= 1:
+        score += 0.20
+
+    if citation_density >= 0.3:
+        score += 0.25
+    elif citation_density >= 0.15:
+        score += 0.15
+
+    if academic_word_density >= 0.02:
+        score += 0.15
+    elif academic_word_density >= 0.01:
+        score += 0.08
+
+    return min(score, 1.0)
+
+
 def _analyze_single(text: str, include_sentences: bool = False) -> dict:
     text = text.strip()
+    empty_scores = {"roberta_base": 0.0, "roberta_large": 0.0, "binoculars": 0.0, "ppl_medium": 0.0}
+
     if len(text) < 20:
-        return _build_result(0.0, 0.0, {
+        return _build_result(0.0, empty_scores, {
             "style_score": 0.0,
             "perplexity": 999.0,
             "burstiness": 0.0,
@@ -425,29 +585,83 @@ def _analyze_single(text: str, include_sentences: bool = False) -> dict:
     if is_french:
         english_text = translate_to_english(text)
 
-    model_score = roberta_score(english_text)
+    # ── Run all detectors ──────────────────────────────
+    score_base = roberta_score(english_text)
+    score_large = roberta_large_score(english_text)
+    score_bino = binoculars_score(english_text)
     style = analyze_style(text, english_text=english_text)
+    ppl_medium = compute_perplexity_medium(english_text)
+    academic = _detect_academic_density(text)
 
-    global_score = model_score * 0.50 + style["style_score"] * 0.50
+    scores = {
+        "roberta_base": score_base,
+        "roberta_large": score_large,
+        "binoculars": score_bino,
+        "ppl_medium": ppl_medium,
+    }
 
-    if style["perplexity"] < 30:
-        global_score += 0.15 if (model_score >= 0.35 or style["style_score"] >= 0.68) else 0.08
-    elif style["perplexity"] < 45:
-        global_score += 0.06
+    # ── Ensemble: weighted vote ────────────────────────
+    global_score = (
+        score_large * 0.30
+        + score_base * 0.20
+        + score_bino * 0.25
+        + style["style_score"] * 0.25
+    )
 
-    if style["burstiness"] < 12 and style["burstiness_cv"] < 0.35:
-        global_score += 0.06
-    elif style["burstiness"] < 20 and style["burstiness_cv"] < 0.45:
-        global_score += 0.03
+    # ── Detector disagreement penalty ──────────────────
+    # If RoBERTa-base and RoBERTa-large strongly disagree, one is wrong.
+    # Disagreement = the text is ambiguous, reduce confidence.
+    detector_gap = abs(score_base - score_large)
+    if detector_gap > 0.50:
+        # Massive disagreement — trust the lower score more
+        global_score -= 0.12
+    elif detector_gap > 0.35:
+        global_score -= 0.06
 
-    if is_french:
-        global_score += 0.10
+    # ── Agreement boosters (only when detectors agree) ─
+    ai_votes = sum(1 for s in [score_base, score_large, score_bino] if s >= 0.60)
+    human_votes = sum(1 for s in [score_base, score_large, score_bino] if s < 0.30)
 
-    if model_score < 0.20 and style["style_score"] < 0.28:
-        global_score *= 0.80
+    if ai_votes >= 3:
+        global_score += 0.08
+    elif ai_votes >= 2 and detector_gap < 0.30:
+        global_score += 0.04
+
+    if human_votes >= 3:
+        global_score -= 0.06
+    elif human_votes >= 2:
+        global_score -= 0.03
+
+    # ── Academic text correction ───────────────────────
+    # Academic writing (citations, references) is a strong human signal.
+    # Formal academic style can fool AI detectors — correct for this.
+    if academic >= 0.50:
+        global_score -= 0.25  # Heavy correction for clearly academic text
+    elif academic >= 0.30:
+        global_score -= 0.15
+    elif academic >= 0.15:
+        global_score -= 0.08
+
+    # ── Mild perplexity booster (only if non-academic) ─
+    if academic < 0.20:
+        if style["perplexity"] < 25:
+            global_score += 0.06
+        elif style["perplexity"] < 40:
+            global_score += 0.03
+
+    # ── Burstiness booster (only if non-academic) ──────
+    if academic < 0.20:
+        if style["burstiness"] < 12 and style["burstiness_cv"] < 0.35:
+            global_score += 0.04
+        elif style["burstiness"] < 20 and style["burstiness_cv"] < 0.45:
+            global_score += 0.02
+
+    # ── Strong human signal dampening ──────────────────
+    if score_base < 0.15 and score_large < 0.15 and style["style_score"] < 0.25:
+        global_score *= 0.65
 
     global_score = _clamp(global_score)
-    return _build_result(global_score, model_score, style, include_sentences, text)
+    return _build_result(global_score, scores, style, include_sentences, text)
 
 
 def _weighted_average(results: list[tuple[float, float]]) -> float:
@@ -469,6 +683,8 @@ def predict_chunks(request: ChunksRequest):
     results = []
     global_scores = []
     model_scores = []
+    model_large_scores = []
+    binoculars_scores = []
     style_scores = []
     perplexity_scores = []
     perplexities = []
@@ -487,6 +703,8 @@ def predict_chunks(request: ChunksRequest):
 
         global_scores.append((analysis["global_score"], weight))
         model_scores.append((analysis["model_score"], weight))
+        model_large_scores.append((analysis["model_score_large"], weight))
+        binoculars_scores.append((analysis["binoculars_score"], weight))
         style_scores.append((analysis["style_score"], weight))
         perplexity_scores.append((analysis["perplexity_score"], weight))
         perplexities.append((analysis["perplexity"], weight))
@@ -505,6 +723,8 @@ def predict_chunks(request: ChunksRequest):
     return {
         "global_score": round(overall_global_score, 4),
         "model_score": round(_weighted_average(model_scores), 4),
+        "model_score_large": round(_weighted_average(model_large_scores), 4),
+        "binoculars_score": round(_weighted_average(binoculars_scores), 4),
         "style_score": round(_weighted_average(style_scores), 4),
         "perplexity_score": round(_weighted_average(perplexity_scores), 4),
         "perplexity": round(_weighted_average(perplexities), 4),

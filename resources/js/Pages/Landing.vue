@@ -93,7 +93,7 @@ function scrollToAnalyse() {
             <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
                 <a href="/" class="flex items-center gap-2.5">
                     <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-                        <span class="h-3 w-3 rounded-full bg-zinc-900 dark:bg-zinc-100"></span>
+                        <span class="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]"></span>
                     </span>
                     <span class="text-[15px] font-semibold tracking-tight">ReinIA</span>
                 </a>

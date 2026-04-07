@@ -137,7 +137,7 @@ async function confirmDeleteRecentDetection() {
                     <div class="flex items-center justify-between mb-3 px-1">
                         <a href="/app" class="flex min-w-0 items-center gap-3" @click="sidebarOpen = false">
                             <span class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                                <span class="h-4 w-4 rounded-full bg-teal-500 dark:bg-cyan-400"></span>
+                                <span class="h-4 w-4 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]"></span>
                             </span>
                             <span class="min-w-0">
                                 <span class="block text-sm font-semibold tracking-tight text-slate-950 dark:text-white sm:text-base">ReinIA</span>
