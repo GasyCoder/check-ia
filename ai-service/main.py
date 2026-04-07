@@ -320,25 +320,70 @@ def _score_sentence_quick(sentence: str) -> float:
     return _clamp(base_score)
 
 
-def _analyze_sentences(text: str) -> list[dict]:
-    raw_sentences = re.split(r"(?<=[.!?:;])\s+", text)
-    sentences = []
+def _analyze_sentences(text: str, global_score: float = 0.0) -> list[dict]:
+    """Score each sentence relative to each other, then redistribute around the global score.
 
+    Per-sentence RoBERTa/perplexity is used only for ranking (which sentences
+    are MORE vs LESS likely AI).  The absolute scale is anchored to the global
+    score so that the visual coloring is consistent with the gauge.
+    """
+    raw_sentences = re.split(r"(?<=[.!?:;])\s+", text)
+    entries: list[dict] = []
+
+    # --- Pass 1: collect raw per-sentence signals for ranking ---------------
     for sentence in raw_sentences:
         sentence = sentence.strip()
         if len(sentence) < 10:
-            if sentences:
-                sentences[-1]["text"] += " " + sentence
+            if entries:
+                entries[-1]["text"] += " " + sentence
             continue
 
         if len(sentence.split()) < 5:
-            score = 0.0
+            # Too short – no independent signal
+            entries.append({"text": sentence, "raw": None})
         else:
-            score = round(_score_sentence_quick(sentence) * 100, 1)
+            ppl_score = _score_sentence_quick(sentence)
+            sent_text = sentence
+            if is_mostly_french(sentence):
+                try:
+                    sent_text = translate_to_english(sentence)
+                except Exception:
+                    sent_text = sentence
+            rob_score = roberta_score(sent_text)
+            combined = rob_score * 0.60 + ppl_score * 0.40
+            entries.append({"text": sentence, "raw": combined})
 
-        sentences.append({"text": sentence, "score": score})
+    if not entries:
+        return []
 
-    return sentences
+    # --- Pass 2: redistribute around global_score --------------------------
+    raw_scores = [e["raw"] for e in entries if e["raw"] is not None]
+
+    if not raw_scores:
+        # All sentences too short – just assign global score
+        return [{"text": e["text"], "score": round(global_score * 100, 1)} for e in entries]
+
+    raw_mean = sum(raw_scores) / len(raw_scores)
+    raw_std = (sum((r - raw_mean) ** 2 for r in raw_scores) / len(raw_scores)) ** 0.5
+
+    result = []
+    for entry in entries:
+        if entry["raw"] is None:
+            score = global_score * 100
+        else:
+            if raw_std < 0.01:
+                # All sentences score the same – no variation to spread
+                score = global_score * 100
+            else:
+                # How many std-devs above/below the mean this sentence is
+                z = (entry["raw"] - raw_mean) / raw_std
+                # Spread: each std-dev shifts ±12 percentage points from global
+                score = global_score * 100 + z * 12.0
+            score = max(0.0, min(100.0, score))
+            score = round(score, 1)
+        result.append({"text": entry["text"], "score": score})
+
+    return result
 
 
 def _build_result(global_score: float, model_score: float, style: dict, include_sentences: bool, text: str) -> dict:
@@ -358,7 +403,7 @@ def _build_result(global_score: float, model_score: float, style: dict, include_
     }
 
     if include_sentences:
-        result["sentences"] = _analyze_sentences(text)
+        result["sentences"] = _analyze_sentences(text, global_score)
 
     return result
 

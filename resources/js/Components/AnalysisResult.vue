@@ -100,45 +100,27 @@ function authenticityBarColor(value) {
     return 'bg-rose-500';
 }
 
-function sentenceVisualScore(score, contextScore = props.result) {
-    const sentenceScore = normalizePercent(score);
-    const context = normalizePercent(contextScore);
+function sentenceClasses(score) {
+    const value = normalizePercent(score);
 
-    if (context >= 26 && context <= 50 && sentenceScore >= 18) {
-        return Math.max(sentenceScore, 28);
+    if (value >= 75) {
+        return 'rounded-md border border-rose-300 bg-rose-500/20 px-2 py-1 text-zinc-800 transition-colors dark:border-rose-500/30 dark:bg-rose-500/25 dark:text-zinc-100';
     }
 
-    if (context >= 51 && context <= 75 && sentenceScore >= 34) {
-        return Math.max(sentenceScore, 52);
+    if (value >= 50) {
+        return 'rounded-md border border-rose-200 bg-rose-500/10 px-2 py-1 text-zinc-800 transition-colors dark:border-rose-500/20 dark:bg-rose-500/15 dark:text-zinc-100';
     }
 
-    if (context >= 76 && sentenceScore >= 50) {
-        return Math.max(sentenceScore, 76);
+    if (value >= 25) {
+        return 'rounded-md border border-emerald-200 bg-emerald-500/10 px-2 py-1 text-zinc-800 transition-colors dark:border-emerald-500/15 dark:bg-emerald-500/10 dark:text-zinc-100';
     }
 
-    return sentenceScore;
+    return 'rounded-md border border-emerald-300 bg-emerald-500/20 px-2 py-1 text-zinc-800 transition-colors dark:border-emerald-500/25 dark:bg-emerald-500/20 dark:text-zinc-100';
 }
 
-function sentenceClasses(score, contextScore = props.result) {
-    const value = sentenceVisualScore(score, contextScore);
-
-    if (value >= 76) {
-        return 'rounded-md border border-rose-200 bg-rose-500/10 px-2 py-1 text-zinc-800 transition-colors dark:border-rose-500/25 dark:bg-rose-500/15 dark:text-zinc-100';
-    }
-
-    if (value >= 51) {
-        return 'rounded-md border border-orange-200 bg-orange-500/10 px-2 py-1 text-zinc-800 transition-colors dark:border-orange-500/25 dark:bg-orange-500/15 dark:text-zinc-100';
-    }
-
-    if (value >= 26) {
-        return 'rounded-md border border-amber-200 bg-amber-500/10 px-2 py-1 text-zinc-800 transition-colors dark:border-amber-500/25 dark:bg-amber-500/15 dark:text-zinc-100';
-    }
-
-    return 'rounded-md border border-emerald-200 bg-emerald-500/10 px-2 py-1 text-zinc-800 transition-colors dark:border-emerald-500/25 dark:bg-emerald-500/15 dark:text-zinc-100';
-}
-
-function sentenceTooltip(score, contextScore = props.result) {
-    return `Score IA : ${sentenceVisualScore(score, contextScore).toFixed(1)}%`;
+function sentenceTooltip(score) {
+    const value = normalizePercent(score);
+    return value >= 50 ? `IA : ${value.toFixed(1)}%` : `Humain : ${(100 - value).toFixed(1)}%`;
 }
 
 function chunkVerdict(score) {
@@ -256,21 +238,27 @@ async function copyShareText() {
         </div>
 
         <section v-if="activeTab === 'phrases' && displaySentences" class="rounded-lg border border-zinc-200 bg-zinc-50 p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:p-8">
-            <div class="mb-5 flex items-center justify-between gap-3">
-                <div>
-                    <h3 class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Détail phrase par phrase</h3>
-                    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Lecture des segments avec un niveau de mise en évidence volontairement discret.</p>
+            <div class="mb-5 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Détail phrase par phrase</h3>
+                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Chaque phrase est colorée selon sa probabilité d'origine.</p>
+                    </div>
+                    <span class="rounded-full border border-zinc-200 bg-white px-3 py-1 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">{{ displaySentences.length }} phrases</span>
                 </div>
-                <span class="rounded-full border border-zinc-200 bg-white px-3 py-1 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">{{ displaySentences.length }} phrases</span>
+                <div class="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-sm border border-emerald-200 bg-emerald-500/20"></span> Humain</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-sm border border-rose-200 bg-rose-500/20"></span> IA</span>
+                </div>
             </div>
 
             <div class="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                 <p class="text-sm leading-8 text-zinc-700 dark:text-zinc-200">
                     <template v-for="(sentence, index) in displaySentences" :key="index">
                         <span class="group relative inline-block align-baseline">
-                            <span :class="sentenceClasses(sentence.score, result)" :title="sentenceTooltip(sentence.score, result)">{{ sentence.text }}</span>
+                            <span :class="sentenceClasses(sentence.score)" :title="sentenceTooltip(sentence.score)">{{ sentence.text }}</span>
                             <span class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-zinc-950 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:bg-zinc-100 dark:text-zinc-900">
-                                IA {{ sentenceVisualScore(sentence.score, result).toFixed(1) }}%
+                                {{ sentenceTooltip(sentence.score) }}
                             </span>
                         </span>{{ ' ' }}
                     </template>
@@ -350,9 +338,9 @@ async function copyShareText() {
                         <p class="text-sm leading-8 text-zinc-700 dark:text-zinc-200">
                             <template v-for="(sentence, sentenceIndex) in chunk.sentences" :key="sentenceIndex">
                                 <span class="group relative inline-block align-baseline">
-                                    <span :class="sentenceClasses(sentence.score, chunk.ai_probability)" :title="sentenceTooltip(sentence.score, chunk.ai_probability)">{{ sentence.text }}</span>
+                                    <span :class="sentenceClasses(sentence.score)" :title="sentenceTooltip(sentence.score)">{{ sentence.text }}</span>
                                     <span class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-zinc-950 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:bg-zinc-100 dark:text-zinc-900">
-                                        IA {{ sentenceVisualScore(sentence.score, chunk.ai_probability).toFixed(1) }}%
+                                        {{ sentenceTooltip(sentence.score) }}
                                     </span>
                                 </span>{{ ' ' }}
                             </template>
