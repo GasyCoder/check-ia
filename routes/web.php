@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DetectionController;
 use App\Http\Controllers\HistoryController;
+use App\Http\Controllers\HumanizeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,9 @@ Route::get('/', function () {
 // Guest analysis (limited to 20k chars, no auth)
 Route::post('/guest/analyze-text', [DetectionController::class, 'guestAnalyze'])
     ->middleware('throttle:10,1');
+
+Route::get('/shared/humanization/{token}', [HumanizeController::class, 'showShared'])
+    ->name('humanize.shared');
 
 // ─── Auth (guest only) ───
 Route::middleware('guest')->group(function () {
@@ -53,6 +57,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/analyze-text', [DetectionController::class, 'analyze']);
     Route::post('/analyze-file', [DetectionController::class, 'analyzeFile']);
+    Route::post('/humanize', [HumanizeController::class, 'humanize']);
+    Route::post('/humanize/share', [HumanizeController::class, 'createShareLink']);
+    Route::post('/humanize/export', [HumanizeController::class, 'export']);
 
     Route::get('/faq', function () {
         return Inertia::render('Faq');

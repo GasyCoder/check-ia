@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -9,13 +9,264 @@
 @source '../**/*.js';
 @source '../**/*.vue';
 
+/* ═══════════════════════════════════════════
+   REINIA Premium Design System
+   ═══════════════════════════════════════════ */
+
 @theme {
-    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Outfit', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /* Brand colors */
+    --color-brand-50: oklch(0.97 0.01 250);
+    --color-brand-100: oklch(0.93 0.03 250);
+    --color-brand-200: oklch(0.87 0.06 250);
+    --color-brand-300: oklch(0.78 0.10 250);
+    --color-brand-400: oklch(0.68 0.15 250);
+    --color-brand-500: oklch(0.58 0.19 250);
+    --color-brand-600: oklch(0.50 0.20 250);
+    --color-brand-700: oklch(0.42 0.18 250);
+
+    /* Accent (electric teal) */
+    --color-accent-400: oklch(0.78 0.14 180);
+    --color-accent-500: oklch(0.68 0.16 180);
+    --color-accent-600: oklch(0.58 0.15 180);
+
+    /* Surface colors for glassmorphism */
+    --color-surface-light: rgba(255, 255, 255, 0.7);
+    --color-surface-dark: rgba(24, 24, 27, 0.6);
+    --color-surface-elevated-light: rgba(255, 255, 255, 0.85);
+    --color-surface-elevated-dark: rgba(30, 30, 35, 0.8);
+
+    /* Animations */
     --animate-shimmer: shimmer 1.5s infinite;
+    --animate-fade-in: fade-in 0.5s ease-out;
+    --animate-slide-up: slide-up 0.4s ease-out;
+    --animate-slide-down: slide-down 0.3s ease-out;
+    --animate-scale-in: scale-in 0.3s ease-out;
+    --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+    --animate-score-fill: score-fill 1.2s ease-out;
+    --animate-spin-slow: spin 3s linear infinite;
+    --animate-toast-in: toast-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-toast-out: toast-out 0.3s ease-in;
 }
+
+/* ─── Keyframes ─────────────────────────── */
 
 @keyframes shimmer {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+    50% { box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.15); }
+}
+
+@keyframes score-fill {
+    from { stroke-dashoffset: var(--gauge-circumference, 283); }
+    to { stroke-dashoffset: var(--gauge-target, 0); }
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateX(100%) scale(0.95); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes toast-out {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to { opacity: 0; transform: translateX(100%) scale(0.95); }
+}
+
+@keyframes typing-dot {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-4px); }
+}
+
+@keyframes border-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes count-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Glassmorphism utilities ───────────── */
+
+.glass {
+    background: var(--color-surface-light);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass,
+:where(.dark, .dark *) .glass {
+    background: var(--color-surface-dark);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-elevated {
+    background: var(--color-surface-elevated-light);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+.dark .glass-elevated,
+:where(.dark, .dark *) .glass-elevated {
+    background: var(--color-surface-elevated-dark);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Gradient text ─────────────────────── */
+
+.text-gradient {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 40%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.text-gradient-warm {
+    background: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.text-gradient-success {
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ─── Animated border gradient ──────────── */
+
+.border-gradient {
+    position: relative;
+}
+
+.border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4, #6366f1);
+    background-size: 300% 300%;
+    animation: border-flow 4s ease infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* ─── Typing dots animation ─────────────── */
+
+.typing-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: typing-dot 1.2s ease-in-out infinite;
+    margin: 0 2px;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+/* ─── Custom scrollbar ──────────────────── */
+
+.scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+.dark .scrollbar-thin,
+:where(.dark, .dark *) .scrollbar-thin {
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+    width: 5px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 10px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb,
+:where(.dark, .dark *) .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Noise texture overlay ─────────────── */
+
+.noise-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+}
+
+.dark .noise-bg::after,
+:where(.dark, .dark *) .noise-bg::after {
+    opacity: 0.03;
+}
+
+/* ─── Focus ring ────────────────────────── */
+
+.focus-ring {
+    transition: box-shadow 0.2s ease;
+}
+
+.focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #6366f1, 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+/* ─── Smooth theme transition ───────────── */
+
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.15s ease !important;
 }

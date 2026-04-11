@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Detection;
+use App\Models\Humanization;
 use App\Services\TextPreprocessor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use PhpOffice\PhpWord\IOFactory as WordIOFactory;
 use Smalot\PdfParser\Parser as PdfParser;
 
@@ -13,6 +15,17 @@ class DetectionController extends Controller
 {
     private const AI_SERVICE_URL = 'http://localhost:8000';
     private const CHUNK_THRESHOLD = 2000; // chars: above this, use chunk analysis
+    private const HUMANIZE_TEXT_LIMIT = 50000;
+    private const HUMANIZE_MODES = ['rapid', 'reasoning', 'pro'];
+
+    private function normalizeIntensity(?string $intensity): string
+    {
+        return match ($intensity) {
+            'easy', 'light' => 'light',
+            'aggressive' => 'aggressive',
+            default => 'medium',
+        };
+    }
 
     private function normalizeProbability(mixed $value): float
     {
@@ -25,9 +38,9 @@ class DetectionController extends Controller
         return round(max(0, min(100, $probability)), 1);
     }
 
-    private function normalizeSentences(array $sentences): array
+    private function normalizeSentences(array $sentences, string $prefix = 'sentence'): array
     {
-        return array_values(array_filter(array_map(function ($sentence) {
+        $normalized = array_values(array_filter(array_map(function ($sentence) {
             if (!is_array($sentence)) {
                 return null;
             }
@@ -44,13 +57,21 @@ class DetectionController extends Controller
                 'score' => $this->normalizeProbability($sentence['score'] ?? 0),
             ];
         }, $sentences)));
+
+        return array_map(function ($sentence, $index) use ($prefix) {
+            $sentence['id'] = $sentence['id'] ?? "{$prefix}-{$index}";
+
+            return $sentence;
+        }, $normalized, array_keys($normalized));
     }
 
     private function normalizeChunkResults(array $chunks): array
     {
-        return array_values(array_filter(array_map(function ($chunk) {
+        $normalizedChunks = [];
+
+        foreach (array_values($chunks) as $chunkIndex => $chunk) {
             if (!is_array($chunk)) {
-                return null;
+                continue;
             }
 
             $chunk['ai_probability'] = $this->normalizeProbability($chunk['ai_probability'] ?? 0);
@@ -64,11 +85,200 @@ class DetectionController extends Controller
             }
 
             if (isset($chunk['sentences']) && is_array($chunk['sentences'])) {
-                $chunk['sentences'] = $this->normalizeSentences($chunk['sentences']);
+                $chunk['sentences'] = $this->normalizeSentences($chunk['sentences'], "chunk-{$chunkIndex}-sentence");
             }
 
-            return $chunk;
-        }, $chunks)));
+            $normalizedChunks[] = $chunk;
+        }
+
+        return $normalizedChunks;
+    }
+
+    private function shouldAutoHumanize(string $mode): bool
+    {
+        return in_array($mode, self::HUMANIZE_MODES, true);
+    }
+
+    private function mapModeToIntensity(string $mode): string
+    {
+        return match ($mode) {
+            'rapid' => 'light',
+            'reasoning' => 'medium',
+            'pro' => 'aggressive',
+            default => 'medium',
+        };
+    }
+
+    private function humanizationErrorPayload(string $mode, string $message, string $status = 'failed'): array
+    {
+        return [
+            'status' => $status,
+            'mode' => $mode,
+            'intensity' => $this->mapModeToIntensity($mode),
+            'error' => $message,
+            'humanized_text' => '',
+            'segments' => [],
+            'reanalyzed_score' => null,
+            'estimated_score_before' => null,
+            'estimated_score_after' => null,
+        ];
+    }
+
+    private function collectHumanizeSegments(array $analysisData): array
+    {
+        if (!empty($analysisData['sentences']) && is_array($analysisData['sentences'])) {
+            return array_values(array_filter(array_map(function ($sentence, $index) {
+                if (!is_array($sentence)) {
+                    return null;
+                }
+
+                $text = trim((string) ($sentence['text'] ?? ''));
+
+                if ($text === '') {
+                    return null;
+                }
+
+                return [
+                    'id' => $sentence['id'] ?? "sentence-{$index}",
+                    'text' => $text,
+                ];
+            }, $analysisData['sentences'], array_keys($analysisData['sentences']))));
+        }
+
+        $segments = [];
+
+        foreach (($analysisData['chunks'] ?? []) as $chunkIndex => $chunk) {
+            if (!is_array($chunk) || empty($chunk['sentences']) || !is_array($chunk['sentences'])) {
+                continue;
+            }
+
+            foreach ($chunk['sentences'] as $sentenceIndex => $sentence) {
+                if (!is_array($sentence)) {
+                    continue;
+                }
+
+                $text = trim((string) ($sentence['text'] ?? ''));
+
+                if ($text === '') {
+                    continue;
+                }
+
+                $segments[] = [
+                    'id' => $sentence['id'] ?? "chunk-{$chunkIndex}-sentence-{$sentenceIndex}",
+                    'text' => $text,
+                ];
+            }
+        }
+
+        return $segments;
+    }
+
+    private function appendHumanization(Request $request, array $analysisData, string $text, string $mode): array
+    {
+        if (!$this->shouldAutoHumanize($mode)) {
+            return $analysisData;
+        }
+
+        $analysisData['mode'] = $mode;
+
+        if (mb_strlen($text) > self::HUMANIZE_TEXT_LIMIT) {
+            $analysisData['humanization'] = $this->humanizationErrorPayload(
+                $mode,
+                'L’humanisation instantanée est limitée à 50 000 caractères. Analyse disponible, humanisation à lancer sur un extrait plus court.',
+                'skipped',
+            );
+
+            return $analysisData;
+        }
+
+        $user = $request->user();
+
+        if (!$user || !$user->isSuperAdmin()) {
+            $key = 'humanize:' . auth()->id();
+
+            if (RateLimiter::tooManyAttempts($key, 10)) {
+                $seconds = RateLimiter::availableIn($key);
+                $analysisData['humanization'] = $this->humanizationErrorPayload(
+                    $mode,
+                    "Limite d'humanisations atteinte. Réessayez dans " . ceil($seconds / 60) . " minutes.",
+                    'rate_limited',
+                );
+
+                return $analysisData;
+            }
+
+            RateLimiter::hit($key, 3600);
+        }
+
+        $intensity = $this->mapModeToIntensity($mode);
+        $segments = $this->collectHumanizeSegments($analysisData);
+
+        try {
+            $payload = [
+                'text' => mb_substr($text, 0, self::HUMANIZE_TEXT_LIMIT),
+                'intensity' => $intensity,
+                'mode' => $mode,
+            ];
+
+            if (!empty($segments)) {
+                $payload['segments'] = $segments;
+            }
+
+            $response = Http::timeout(120)->post(self::AI_SERVICE_URL . '/humanize', $payload);
+
+            if (!$response->successful()) {
+                \Log::error('Inline humanization service error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'mode' => $mode,
+                ]);
+
+                $analysisData['humanization'] = $this->humanizationErrorPayload(
+                    $mode,
+                    'Réécriture indisponible pour ce lancement. L’analyse reste affichée.',
+                );
+
+                return $analysisData;
+            }
+
+            $humanizedText = (string) $response->json('humanized_text', '');
+
+            if ($humanizedText !== '') {
+                Humanization::create([
+                    'user_id' => auth()->id(),
+                    'original_text' => $text,
+                    'humanized_text' => $humanizedText,
+                    'intensity' => $intensity,
+                ]);
+            }
+
+            $analysisData['humanization'] = [
+                'status' => 'completed',
+                'mode' => $mode,
+                'intensity' => $intensity,
+                'humanized_text' => $humanizedText,
+                'segments' => $response->json('segments', []),
+                'reanalyzed_score' => null,
+                'estimated_score_before' => $response->json('estimated_score_before'),
+                'estimated_score_after' => $response->json('estimated_score_after'),
+                'retry_count' => $response->json('retry_count'),
+                'used_fallback' => $response->json('used_fallback'),
+            ];
+
+            return $analysisData;
+        } catch (\Exception $e) {
+            \Log::error('Inline humanization exception', [
+                'mode' => $mode,
+                'message' => $e->getMessage(),
+            ]);
+
+            $analysisData['humanization'] = $this->humanizationErrorPayload(
+                $mode,
+                'Réécriture indisponible pour ce lancement. L’analyse reste affichée.',
+            );
+
+            return $analysisData;
+        }
     }
 
     /**
@@ -104,25 +314,44 @@ class DetectionController extends Controller
     {
         $request->validate([
             'text' => 'required|string|min:10|max:1500000',
+            'mode' => 'sometimes|string|in:detect,rapid,reasoning,pro',
+            'task_type' => 'sometimes|string|in:detect,humanize',
+            'intensity' => 'sometimes|string|in:easy,light,medium,aggressive',
         ]);
 
         $text = $request->input('text');
+        $mode = $request->input('mode', 'detect');
+        $intensity = $this->normalizeIntensity($request->input('intensity'));
 
-        if (mb_strlen($text) > self::CHUNK_THRESHOLD) {
-            return $this->analyzeWithChunks($text);
+        $response = mb_strlen($text) > self::CHUNK_THRESHOLD
+            ? $this->analyzeWithChunks($text, null, $mode, 'detect', $intensity)
+            : $this->analyzeSingle($text, null, $mode, 'detect', $intensity);
+
+        if (!$this->shouldAutoHumanize($mode) || !$response instanceof \Illuminate\Http\JsonResponse || $response->getStatusCode() >= 400) {
+            return $response;
         }
 
-        return $this->analyzeSingle($text);
+        $data = $response->getData(true);
+
+        return response()->json(
+            $this->appendHumanization($request, $data, $data['analyzed_text'] ?? $text, $mode),
+            $response->getStatusCode(),
+        );
     }
 
     public function analyzeFile(Request $request)
     {
         $request->validate([
             'file' => 'required|file|max:25600|mimes:txt,pdf,docx',
+            'mode' => 'sometimes|string|in:detect,rapid,reasoning,pro',
+            'task_type' => 'sometimes|string|in:detect,humanize',
+            'intensity' => 'sometimes|string|in:easy,light,medium,aggressive',
         ]);
 
         $file = $request->file('file');
         $extension = strtolower($file->getClientOriginalExtension());
+        $mode = $request->input('mode', 'detect');
+        $intensity = $this->normalizeIntensity($request->input('intensity'));
 
         try {
             $rawText = match ($extension) {
@@ -152,16 +381,21 @@ class DetectionController extends Controller
         $fileName = $file->getClientOriginalName();
 
         if (count($chunks) > 1) {
-            $result = $this->callChunkService($chunks, $cleanText, $fileName);
+            $result = $this->callChunkService($chunks, $cleanText, $fileName, $mode, 'detect', $intensity);
         } else {
-            $result = $this->callSingleService($cleanText, $fileName);
+            $result = $this->callSingleService($cleanText, $fileName, $mode, 'detect', $intensity);
         }
 
         if ($result instanceof \Illuminate\Http\JsonResponse) {
             $data = $result->getData(true);
             $data['extracted_text'] = $cleanText;
             $data['preprocessing'] = $processed['stats'];
-            return response()->json($data);
+
+            if ($this->shouldAutoHumanize($mode) && $result->getStatusCode() < 400) {
+                $data = $this->appendHumanization($request, $data, $cleanText, $mode);
+            }
+
+            return response()->json($data, $result->getStatusCode());
         }
 
         return $result;
@@ -170,31 +404,52 @@ class DetectionController extends Controller
     /**
      * Simple analysis for short texts.
      */
-    private function analyzeSingle(string $text, ?string $fileName = null)
+    private function analyzeSingle(
+        string $text,
+        ?string $fileName = null,
+        string $mode = 'detect',
+        string $taskType = 'detect',
+        string $intensity = 'medium',
+    )
     {
-        return $this->callSingleService($text, $fileName);
+        return $this->callSingleService($text, $fileName, $mode, $taskType, $intensity);
     }
 
     /**
      * Chunk-based analysis for long texts.
      */
-    private function analyzeWithChunks(string $text, ?string $fileName = null)
+    private function analyzeWithChunks(
+        string $text,
+        ?string $fileName = null,
+        string $mode = 'detect',
+        string $taskType = 'detect',
+        string $intensity = 'medium',
+    )
     {
         $processed = TextPreprocessor::process($text);
         $chunks = $processed['chunks'];
 
         if (count($chunks) <= 1) {
-            return $this->callSingleService($processed['text'], $fileName);
+            return $this->callSingleService($processed['text'], $fileName, $mode, $taskType, $intensity);
         }
 
-        return $this->callChunkService($chunks, $processed['text'], $fileName);
+        return $this->callChunkService($chunks, $processed['text'], $fileName, $mode, $taskType, $intensity);
     }
 
-    private function callSingleService(string $text, ?string $fileName = null)
+    private function callSingleService(
+        string $text,
+        ?string $fileName = null,
+        string $mode = 'detect',
+        string $taskType = 'detect',
+        string $intensity = 'medium',
+    )
     {
         try {
             $response = Http::timeout(120)->post(self::AI_SERVICE_URL . '/predict', [
                 'text' => mb_substr($text, 0, 15000),
+                'mode' => $mode,
+                'task_type' => $taskType,
+                'intensity' => $intensity,
             ]);
 
             if ($response->successful()) {
@@ -219,7 +474,11 @@ class DetectionController extends Controller
 
                 return response()->json([
                     'result' => $probability,
+                    'analyzed_text' => $text,
                     'sentences' => $sentences,
+                    'mode' => $mode,
+                    'task_type' => $taskType,
+                    'intensity' => $intensity,
                 ]);
             }
 
@@ -233,7 +492,14 @@ class DetectionController extends Controller
         }
     }
 
-    private function callChunkService(array $chunks, string $fullText, ?string $fileName = null)
+    private function callChunkService(
+        array $chunks,
+        string $fullText,
+        ?string $fileName = null,
+        string $mode = 'detect',
+        string $taskType = 'detect',
+        string $intensity = 'medium',
+    )
     {
         try {
             // Limit chunks to avoid timeout (max ~20 chunks)
@@ -241,6 +507,9 @@ class DetectionController extends Controller
 
             $response = Http::timeout(300)->post(self::AI_SERVICE_URL . '/predict-chunks', [
                 'chunks' => $chunksToSend,
+                'mode' => $mode,
+                'task_type' => $taskType,
+                'intensity' => $intensity,
             ]);
 
             if ($response->successful()) {
@@ -266,8 +535,12 @@ class DetectionController extends Controller
 
                 return response()->json([
                     'result' => $probability,
+                    'analyzed_text' => $fullText,
                     'chunks' => $chunkResults,
                     'chunk_count' => count($chunkResults),
+                    'mode' => $mode,
+                    'task_type' => $taskType,
+                    'intensity' => $intensity,
                 ]);
             }
 
